@@ -2,6 +2,8 @@ name:           hpaste
 version:        2.0
 synopsis:       A pastebin
 cabal-version:  >= 1.2
+license:        BSD3
+license-file:   LICENSE
 build-type:     Simple
 
 flag small_base
