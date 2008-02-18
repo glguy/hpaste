@@ -1,4 +1,15 @@
-{-# OPTIONS_GHC -fglasgow-exts -fallow-incoherent-instances #-}
+--------------------------------------------------------------------
+-- |
+-- Module    : hpaste
+-- Copyright : (c) PDX Hackers, Inc. 2008
+-- License   : BSD3
+--
+-- Maintainer: Don Stewart <dons@galois.com>
+-- Stability : provisional
+-- Portability:
+--
+--------------------------------------------------------------------
+
 module Main where
 
 import Control.Concurrent
