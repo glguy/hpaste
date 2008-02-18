@@ -4,4 +4,9 @@ CREATE TABLE IF NOT EXISTS paste
   , content TEXT NOT NULL
   , title   TEXT
   , author  TEXT
+  , hostname  TEXT
+  , ipaddress TEXT
+  , expireon INTEGER
+  , language TEXT
+  , parentid  INTEGER
   ) ;
