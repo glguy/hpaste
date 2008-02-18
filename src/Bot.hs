@@ -3,9 +3,9 @@ module Bot where
 import Control.Concurrent
 import Network.IRC
 
-data Announcement = NewPaste Int    -- ! Paste id
-                             String -- ! Author
-                             String -- ! Title
+data Announcement = NewPaste { pasteid :: !Int        -- ! Paste id
+                             , author  :: String     -- ! Author
+                             , title   :: String }   -- ! Title
 
 spawn_bot :: IO (Chan Announcement)
 spawn_bot =
