@@ -2,7 +2,6 @@
              TypeOperators,
              MultiParamTypeClasses,
              FlexibleInstances,
-             FlexibleContexts,
              TypeSynonymInstances,
              UndecidableInstances,
              EmptyDataDecls
