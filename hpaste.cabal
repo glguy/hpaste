@@ -23,6 +23,9 @@ executable hpaste
                      xhtml      >= 3000.0.2.1,
                      network    >= 2.1.0.0,
                      cgi        >= 3001.1.5.1,
+                     utf8-string,
+                     bytestring,
+                     monadLib,
                      Takusen
 
     if flag(small_base)
