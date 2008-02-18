@@ -13,6 +13,8 @@
 
 module Main where
 
+import API
+
 import Control.Concurrent
 import Control.Exception hiding (handle)
 import Control.Monad
@@ -27,7 +29,10 @@ main = runFastCGIConcurrent' forkIO 5 mainCGI
 
 mainCGI =
  do uri <- requestURI
+    method <- requestMethod
+    params <- getInputs
     let p = split '/' $ uriPath uri
+        c = Context method (uriPath uri) params
     handle (drop 3 p)
 
 dbConnect = connect "pastes.db"

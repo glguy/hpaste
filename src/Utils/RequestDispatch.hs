@@ -10,7 +10,7 @@
 
 module Utils.RequestDispatch
          ( Context(..), Method(..), IsArg(..), Arg(..)
-         , Req, Opt, Many, (:>)(..)
+         , Req, Opt, (:>)(..)
          , (-->), runAPI, methodURL, methodURLBase) where
 
 import MonadLib
@@ -20,7 +20,6 @@ import Utils.URL
 import Utils.Misc
 
 data Arg a c = Arg String            -- ^ Arg Name
-data Many
 data Req
 data Opt
 
@@ -87,11 +86,6 @@ class Build a b | a -> b where
 instance Build () URL where
   build _ xs                    = xs
 
-instance (IsArg a, Build b c) =>
-           Build (Arg Many a :> b) ([(String,a)] -> c) where
-  build (Arg name :> b) url xs  = build b (foldl mk url xs)
-    where mk url (s,val) = add_param url (name ++ "__" ++ s,show_arg val)
-
 instance (IsArg a, Build b c) => Build (Arg Req a :> b) (a -> c) where
   build (Arg name :> b) url val = build b $ add_param url (name,show_arg val)
 
@@ -100,10 +94,6 @@ instance (IsArg a, Build b c) =>
   build (Arg name :> b) url mv  = build b $ case mv of
                                     Just v  -> url `add_param` (name,show_arg v)
                                     Nothing -> url
-
-instance Build b c => Build (Arg x a :> b) c where
-  build (_ :> b)                = build  b
-
 
 
 
@@ -170,6 +160,10 @@ instance IsArg BS.ByteString where
   show_arg                      = utf8_decode
   arg_doc _                     = showString "String"
 
+instance IsArg () where
+  readArg _  = return ()
+  show_arg _ = ""
+  arg_doc _ = showString ""
 
 class    ArgsDoc a  where args_doc      :: a -> ShowS
 instance ArgsDoc () where args_doc _ xs = xs
