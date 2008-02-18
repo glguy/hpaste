@@ -15,3 +15,6 @@ utf8_decode = UTF8.decode . BS.unpack
 utf8_encode :: String -> BS.ByteString
 utf8_encode = BS.pack . UTF8.encode
 
+whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
+whenJust Nothing _ = return ()
+whenJust (Just x) f = f x
