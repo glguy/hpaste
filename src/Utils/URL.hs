@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternGuards #-}
 module Utils.URL
   ( URL(..), URLType(..), Host(..)
   , exportURL, importURL, exportHost
