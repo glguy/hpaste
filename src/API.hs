@@ -1,4 +1,7 @@
-module API where
+module API (
+    module API
+  , module Utils.RequestDispatch
+  ) where
 
 import Utils.RequestDispatch
 

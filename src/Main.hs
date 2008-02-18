@@ -27,6 +27,26 @@ import Text.XHtml.Strict
 
 main = runFastCGIConcurrent' forkIO 5 mainCGI
 
+(handlers,docs) = unzip
+  [ mNew  --> handleNew
+ -- , mSave --> handleSave
+  ]
+
+handleNew :: CGI CGIResult
+handleNew = output $ edit_paste_form
+
+{-
+handleSave :: String -> String -> String -> Maybe () -> Maybe () -> CGI CGIResult
+handleSave title author content save preview = do
+    case liftM3 (,,) title author content of
+      Nothing -> output "missing inputs"
+      Just (t,a,c) -> do
+        mbPasteId <- liftIO $ writePaste t a c
+        case mbPasteId of
+          Right pasteId -> redirect (show pasteId)
+          Left e -> output $ "Error: " ++ e
+-}
+
 mainCGI =
  do uri <- requestURI
     method <- requestMethod
@@ -37,28 +57,12 @@ mainCGI =
 
 dbConnect = connect "pastes.db"
 
-handle ["new"] =
-  output $ edit_paste_form
-
 handle [ps] | not (null ps) && all isDigit ps =
  do res <- liftIO $ getPaste pasteId
     case res of
       Nothing -> output "no such paste"
       Just x  -> output $ display_paste x
  where pasteId = read ps
-
-handle ["save"] =
- do title   <- getInput "title"
-    author  <- getInput "author"
-    content <- getInput "content"
-    save    <- getInput "submit"
-    case liftM3 (,,) title author content of
-      Nothing -> output "missing inputs"
-      Just (t,a,c) -> do
-        mbPasteId <- liftIO $ writePaste t a c
-        case mbPasteId of
-          Right pasteId -> redirect (show pasteId)
-          Left e -> output $ "Error: " ++ e
 
 handle ps = do
     pastes <- liftIO $ getPastes
