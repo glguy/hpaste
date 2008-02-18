@@ -1,7 +1,8 @@
 name:           hpaste
-version:        0.1
+version:        2.0
 synopsis:       A pastebin
 cabal-version:  >= 1.2
+build-type:     Simple
 
 flag small_base
   description: Choose the new smaller, split-up base package.
