@@ -1,4 +1,4 @@
-module Utils.Misc
+module Utils.Misc where
 
 import qualified Data.ByteString as BS
 import qualified Codec.Binary.UTF8.String as UTF8

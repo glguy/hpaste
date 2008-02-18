@@ -19,7 +19,6 @@ import Data.Maybe (fromJust)
 import qualified Data.ByteString.Lazy as BS
 
 import Network.HTTP
-import Utils.HtmlForm
 import Utils.URL
 import Utils.Misc
 
