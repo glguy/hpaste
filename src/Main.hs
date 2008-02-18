@@ -51,7 +51,8 @@ mainCGI =
  do uri    <- requestURI
     method <- requestMethod
     params <- getInputs
-    let c = Context method (uriPath uri) params
+    let path = uriPath uri
+    let c = Context method (reverse $ takeWhile (/= '/') $ reverse path) params
     case runAPI c handlers of
       Nothing         -> outputHTML usage
       Just (Left err) -> outputHTML err
