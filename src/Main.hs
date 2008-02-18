@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSignatures #-}
 --------------------------------------------------------------------
 -- |
 -- Module    : hpaste
@@ -107,8 +106,11 @@ writePaste title author content =
   in (
   withSession dbConnect $ do
   execDML query1
+  commit
   return (Right 0)
-  ) `catchDyn` \ (e :: DBException) -> return (Left (show e))
+  ) `catchDB` \ e -> return (Left (show e))
+
+
 listPage ps pastes = renderHtml $
   p << ps
   +++ p << show pastes

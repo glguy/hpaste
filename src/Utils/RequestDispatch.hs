@@ -40,7 +40,7 @@ runAPI :: Context
        -> Maybe (Either String a)
 runAPI ctx handlers = msum $ map ($ ctx) handlers
 
-(-->) :: (ArgsDoc t, Apply t f c)
+(-->) :: (ArgsDoc t, Handler t f c)
       => Method t
       -> f
       -> (Context -> Maybe (Either String c), String)
@@ -56,12 +56,12 @@ docMethod (Method args method name docString) =
 
 
 data Context = Context
-  { cMethod :: String
+  { cMethod :: String       -- ^ HTTP method
   , cPath   :: String
   , cParams :: [(String,String)]
   } deriving (Show)
 
-makeDispatcher :: Apply t f c => Method t -> f -> Context -> Maybe (Error c)
+makeDispatcher :: Handler t f c => Method t -> f -> Context -> Maybe (Error c)
 makeDispatcher m handler p = do
   guard $ cPath p == mName m && cMethod p == mHTTPMethod m
   return $ apply (cParams p) (mArguments m) handler
@@ -79,106 +79,115 @@ baseURL path =
       , url_params   = []
       }
 
+-- Processing lists of arguments -----------------------------------------------
 
+-- | Add a list of arguments to the query of a URL.
 class Build a b | a -> b where
   build :: a -> URL -> b
 
-instance Build () URL where
-  build _ xs                    = xs
+instance Build () URL where build _ xs = xs
+instance (Argument r a c) => Build (Arg r a) (c -> URL) where
+  build a url val = foldl add_param url (arg_out a val)
 
-instance (IsArg a, Build b c) => Build (Arg Req a :> b) (a -> c) where
-  build (Arg name :> b) url val = build b $ add_param url (name,show_arg val)
-
-instance (IsArg a, Build b c) =>
-            Build (Arg Opt a :> b) (Maybe a -> c) where
-  build (Arg name :> b) url mv  = build b $ case mv of
-                                    Just v  -> url `add_param` (name,show_arg v)
-                                    Nothing -> url
+instance (Argument r a c, Build args fun)
+  => Build (Arg r a :> args) (c -> fun) where
+  build (a :> as) url val = build as (foldl add_param url (arg_out a val))
 
 
-
-type ApplyCtx = [(String,String)]
-
-class Apply t f z | t f -> z where
-  apply                         :: ApplyCtx -> t -> f -> Error z
-
-instance Apply () f f where
-  apply _ _                     = return
-
-instance ( ReadLogic arg f
-         , Apply t r z )
-         => Apply (arg :> t) (f -> r) z where
-  apply ctx (arg :> b) f        = do u <- read_logic arg ctx
-                                     apply ctx b (f u)
-
-
-
-
-
--- | Lookup an argument, returns Nothing if the argument was not present, and Just
--- Nothing if the argument couldn't be parsed
-lookup_arg :: IsArg a => ApplyCtx -> String -> Maybe (Maybe a)
-lookup_arg m k = readArg `fmap` lookup k m
-
-
-class ReadLogic a c | a -> c where
-  read_logic                    :: a -> ApplyCtx -> Error c
-  logic_doc                     :: a -> ShowS
-
-instance IsArg t => ReadLogic (Arg Req t) t where
-  read_logic (Arg n) ctx = case lookup_arg ctx n of
-    Just (Just x)       -> return x
-    Nothing             -> err $ "Required argument missing: " ++ n
-    Just Nothing        -> err $ "Failed to parse: " ++ n
-  logic_doc _ xs                = xs
-
-instance IsArg t => ReadLogic (Arg Opt t) (Maybe t) where
-  read_logic (Arg n) ctx  = case lookup_arg ctx n of
-    Just (Just v)       -> return (Just v)
-    Nothing             -> return Nothing
-    Just Nothing        -> err $ "Failed to parse: " ++ n
-  logic_doc _                   = showString "Optional "
-
--- | An alternative to Read, for parsing url values
-class IsArg a where
-  show_arg                      :: a -> String
-  arg_doc                       :: b a -> ShowS
-  readArg                       :: String -> Maybe a
-
-instance IsArg Int where
-  readArg                    = maybeRead
-  show_arg                      = show
-  arg_doc _                     = showString "Int"
-
-instance IsArg String where
-  readArg                    = return
-  show_arg xs                   = xs
-  arg_doc _                     = showString "String"
-
-instance IsArg BS.ByteString where
-  readArg                       = return . utf8_encode
-  show_arg                      = utf8_decode
-  arg_doc _                     = showString "String"
-
-instance IsArg () where
-  readArg _  = return ()
-  show_arg _ = ""
-  arg_doc _ = showString ""
-
+-- | Generate the documentation for a list of arguments.
 class    ArgsDoc a  where args_doc      :: a -> ShowS
 instance ArgsDoc () where args_doc _ xs = xs
-instance ( IsArg a
-         , ArgsDoc b
-         , ReadLogic (Arg x a) k )
-         => ArgsDoc (Arg x a :> b) where
-  args_doc (a@(Arg n) :> b)     = showString n . showString " : "
-                                . logic_doc a
-                                . arg_doc a    . showString "\n"
-                                . args_doc b
+instance (Argument r a c) => ArgsDoc (Arg r a) where args_doc a = arg_doc a
+instance (Argument x a k, ArgsDoc args) => ArgsDoc (Arg x a :> args) where
+  args_doc (a :> b) = arg_doc a . showChar '\n' . args_doc b
 
 
 
+
+type Args = [(String,String)]
+
+class Handler ty_sig handler result | ty_sig handler -> result where
+  apply :: Args -> ty_sig -> handler -> Error result
+
+-- | Useful for methods with no arguments.
+instance Handler () handler handler where
+  apply _ _ h = return h
+
+-- | Useful to avoid having to add @()@ to the end of methids with arguments.
+instance (Argument r a c) => Handler (Arg r a) (c -> b) b where
+  apply ctxt arg h = h `fmap` arg_in arg ctxt
+
+instance (Argument r a f, Handler args handler result)
+  => Handler (Arg r a :> args) (f -> handler) result where
+  apply ctx (arg :> b) f    = do u <- arg_in arg ctx
+                                 apply ctx b (f u)
+
+
+
+--------------------------------------------------------------------------------
+
+-- NOTE: We could use a transformer here, which would enable us
+-- to support situations where accessing arguments happens in a monad.
+-- (e.g., getEnv)
 type Error = ExceptionT String Id
 runError = runId . runExceptionT
 err x = raise x
+
+parse_arg :: IsArg t => String -> String -> Error t
+parse_arg n txt = case read_arg txt of
+                    Nothing -> err $ "Failed to parse: " ++ n
+                    Just v  -> return v
+
+class IsArg a => Argument r a c | r a -> c where
+  arg_in  :: Arg r a -> Args -> Error c
+  arg_out :: Arg r a -> c -> Args
+  arg_doc :: Arg r a -> ShowS
+
+instance IsArg t => Argument Req t t where
+  arg_in (Arg n) ctx = case lookup n ctx of
+    Nothing  -> err $ "Required argument missing: " ++ n
+    Just txt -> parse_arg n txt
+
+  arg_out (Arg n) v = [(n, show_arg v "")]
+
+  arg_doc a@(Arg n) = showString n . showString " : " . showString (show_type a)
+
+instance IsArg t => Argument Opt t (Maybe t) where
+  arg_in (Arg n) ctx  = case lookup n ctx of
+    Nothing  -> return Nothing
+    Just txt -> Just `fmap` parse_arg n txt
+
+  arg_out _ Nothing         = []
+  arg_out (Arg n) (Just v)  = [(n,show_arg v "")]
+
+  arg_doc a@(Arg n) = showString n . showString " : " . showString (show_type a)
+                    . showString " (optional)"
+
+
+-- | Haskell types that can be used in method arguments.
+class IsArg a where
+  show_arg  :: a -> ShowS
+  read_arg  :: String -> Maybe a
+  show_type :: f a -> String
+
+instance IsArg Int where
+  read_arg    = maybeRead
+  show_arg    = shows
+  show_type _ = "Int"
+
+instance IsArg String where
+  read_arg    = return
+  show_arg    = showString
+  show_type _ = "String"
+
+instance IsArg BS.ByteString where
+  read_arg    = return . utf8_encode
+  show_arg    = showString . utf8_decode
+  show_type _ = "String"
+
+instance IsArg () where
+  read_arg _  = return ()
+  show_arg _  = showString ""
+  show_type _ = ""
+
 
