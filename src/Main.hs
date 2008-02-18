@@ -42,10 +42,10 @@ handle [ps] | not (null ps) && all isDigit ps =
  where pasteId = read ps
 
 handle ["save"] =
- do title <- getInput "title"
-    author <- getInput "author"
+ do title   <- getInput "title"
+    author  <- getInput "author"
     content <- getInput "content"
-    save <- getInput "submit"
+    save    <- getInput "submit"
     case liftM3 (,,) title author content of
       Nothing -> output "missing inputs"
       Just (t,a,c) -> do
