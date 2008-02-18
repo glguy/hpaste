@@ -21,10 +21,23 @@ connect :: String -> IO Handle
 connect host = undefined
 
 listener :: Handle -> Chan Message -> IO ()
-listener handle out_chan = undefined
+listener handle out_chan = forever $
+ do line <- hGetLine handle
+    whenJust (decode line) $ \ message ->
+     do response <- handle_message message
+        writeChan out_chan response
 
 writer :: Chan Message -> Handle -> IO ()
-writer out_chan handle = undefined
+writer out_chan handle =
+ do out_list <- getChanContents out_chan
+    foldM (waiter handle) 0 out_list
+
+waiter :: Integer -> Message -> IO Integer
+waiter handle flood_time message =
+ do now <- fmap (`div` cpuTimePrecision) getCPUTime
+    when (flood_time - now > 7) $ threadDelay 2000000
+    hPutStrLn handle $ showMessage message
+    return $ max (now + 2) (flood_time + 2)
 
 announcer :: Chan Announcement -> Chan Message -> IO ()
 announce announce_chan out_chan = undefined
