@@ -1,0 +1,14 @@
+module API where
+
+import Utils.RequestDispatch
+
+mNew  = Method () "GET" "new" "Shows the paste form"
+
+mSave = Method ( (Arg "title"   :: Arg Req String)
+              :> (Arg "author"  :: Arg Req String)
+              :> (Arg "content" :: Arg Req String)
+              :> (Arg "save"    :: Arg Opt ())
+              :> (Arg "preview" :: Arg Opt ())
+              :> ()
+               )
+        "POST" "save" "Saves the paste"
