@@ -29,31 +29,33 @@ main = runFastCGIConcurrent' forkIO 5 mainCGI
 
 (handlers,docs) = unzip
   [ mNew  --> handleNew
- -- , mSave --> handleSave
+  , mSave --> handleSave
   ]
+
+usage = unlines docs
+
+outputHTML :: String -> CGI CGIResult
+outputHTML s = output . renderHtml $ pre << s
 
 handleNew :: CGI CGIResult
 handleNew = output $ edit_paste_form
 
-{-
 handleSave :: String -> String -> String -> Maybe () -> Maybe () -> CGI CGIResult
 handleSave title author content save preview = do
-    case liftM3 (,,) title author content of
-      Nothing -> output "missing inputs"
-      Just (t,a,c) -> do
-        mbPasteId <- liftIO $ writePaste t a c
-        case mbPasteId of
-          Right pasteId -> redirect (show pasteId)
-          Left e -> output $ "Error: " ++ e
--}
+  mbPasteId <- liftIO $ writePaste title author content
+  case mbPasteId of
+    Right pasteId -> redirect (show pasteId)
+    Left e -> output $ "Error: " ++ e
 
 mainCGI =
- do uri <- requestURI
+ do uri    <- requestURI
     method <- requestMethod
     params <- getInputs
-    let p = split '/' $ uriPath uri
-        c = Context method (uriPath uri) params
-    handle (drop 3 p)
+    let c = Context method (uriPath uri) params
+    case runAPI c handlers of
+      Nothing         -> outputHTML usage
+      Just (Left err) -> outputHTML err
+      Just (Right r)  -> r
 
 dbConnect = connect "pastes.db"
 
