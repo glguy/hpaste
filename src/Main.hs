@@ -54,8 +54,8 @@ handle ["save"] =
           Right pasteId -> redirect (show pasteId)
           Left e -> output $ "Error: " ++ e
 
-handle ps =
- do pastes <- liftIO $ getPastes
+handle ps = do
+    pastes <- liftIO $ getPastes
     output (listPage (show ps) pastes)
 
 getPastes =
@@ -69,16 +69,18 @@ getPastes =
 
 getPaste :: Int -> IO (Maybe (String, String, String, String))
 getPaste pasteId =
- let query = sql $ "select title,author,content,createstamp from paste" ++
+    withSession dbConnect $
+    withPreparedStatement (prepareQuery query) $ \ pstmt ->
+    withBoundStatement pstmt [bindP pasteId]   $ \ bstmt ->
+        doQuery bstmt iterFirst Nothing
+
+ where query = sql $ "select title,author,content,createstamp from paste" ++
                    " where pasteid = ?"
-     iterFirst :: Monad m => String -> String -> String -> String
-               -> IterAct m (Maybe (String, String, String, String))
-     iterFirst a b c d _ = return $ Left $ Just (a,b,c,d)
- in
- withSession dbConnect $
- withPreparedStatement (prepareQuery query) $ \ pstmt ->
- withBoundStatement pstmt [bindP pasteId] $ \ bstmt ->
- doQuery bstmt iterFirst Nothing
+
+       iterFirst :: Monad m => String -> String -> String -> String
+                 -> IterAct m (Maybe (String, String, String, String))
+
+       iterFirst a b c d _ = return $ Left $ Just (a,b,c,d)
 
 writePaste :: String -> String -> String -> IO (Either String Int)
 writePaste title author content =
