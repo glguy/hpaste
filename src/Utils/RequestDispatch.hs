@@ -90,7 +90,7 @@ instance (Argument r a c) => Build (Arg r a) (c -> URL) where
 
 instance (Argument r a c, Build args fun)
   => Build (Arg r a :> args) (c -> fun) where
-  build (a :> as) url val = build as (foldl add_param url (arg_out a val))
+  build (a :> as) url val = build as (build a url val)
 
 
 -- | Generate the documentation for a list of arguments.
