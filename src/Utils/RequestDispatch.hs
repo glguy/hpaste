@@ -114,7 +114,7 @@ class Handler ty_sig handler result | ty_sig handler -> result where
 instance Handler () handler handler where
   apply _ _ h = return h
 
--- | Useful to avoid having to add @()@ to the end of methids with arguments.
+-- | Useful to avoid having to add @()@ to the end of methods with arguments.
 instance (Argument r a c) => Handler (Arg r a) (c -> b) b where
   apply ctxt arg h = h `fmap` arg_in arg ctxt
 
