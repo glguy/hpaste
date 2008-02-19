@@ -18,3 +18,8 @@ utf8_encode = BS.pack . UTF8.encode
 whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
 whenJust Nothing _ = return ()
 whenJust (Just x) f = f x
+
+drop_prefix :: String -> String -> Maybe String
+drop_prefix [] xs = Just xs
+drop_prefix (x:xs) (y:ys) | x == y = drop_prefix xs ys
+drop_prefix _ _ = Nothing

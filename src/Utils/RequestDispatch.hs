@@ -14,6 +14,7 @@ module Utils.RequestDispatch
 
 import MonadLib
 import qualified Data.ByteString as BS
+import Data.Maybe(mapMaybe)
 
 import Utils.URL
 import Utils.Misc
@@ -21,6 +22,7 @@ import Utils.Misc
 data Arg a c = Arg String            -- ^ Arg Name
 data Req
 data Opt
+data Many
 
 data Method a = Method
   { mArguments  :: a
@@ -137,6 +139,9 @@ parse_arg n txt = case read_arg txt of
                     Nothing -> err $ "Failed to parse: " ++ n
                     Just v  -> return v
 
+arg_sig :: IsArg t => Arg r t -> ShowS
+arg_sig a@(Arg n) = showString n . showString " : " . showString (show_type a)
+
 class IsArg a => Argument r a c | r a -> c where
   arg_in  :: Arg r a -> Args -> Error c
   arg_out :: Arg r a -> c -> Args
@@ -149,7 +154,7 @@ instance IsArg t => Argument Req t t where
 
   arg_out (Arg n) v = [(n, show_arg v "")]
 
-  arg_doc a@(Arg n) = showString n . showString " : " . showString (show_type a)
+  arg_doc a = arg_sig a
 
 instance IsArg t => Argument Opt t (Maybe t) where
   arg_in (Arg n) ctx  = case lookup n ctx of
@@ -159,8 +164,19 @@ instance IsArg t => Argument Opt t (Maybe t) where
   arg_out _ Nothing         = []
   arg_out (Arg n) (Just v)  = [(n,show_arg v "")]
 
-  arg_doc a@(Arg n) = showString n . showString " : " . showString (show_type a)
-                    . showString " (optional)"
+  arg_doc a = showString "Optional " . arg_sig a
+
+instance IsArg t => Argument Many t [(String,t)] where
+  arg_in (Arg n) ctx  = mapM check2 (mapMaybe check1 ctx)
+    where check1 (x,y) = do k <- drop_prefix (n ++ ".") x
+                            return (k,y)
+          check2 (x,y)  = case read_arg y of
+                            Nothing -> err $ "Failed to parse field "
+                                              ++ show x ++ " of " ++ show n
+                            Just v  -> return (x,v)
+  -- NOTE: This assumes that the name does not contain "."
+  arg_out (Arg n) vs  = [ (n ++ "." ++ x, show_arg y "") | (x,y) <- vs ]
+  arg_doc a           = showString "Many " . arg_sig a
 
 
 -- | Haskell types that can be used in method arguments.
