@@ -14,3 +14,6 @@ mSave = Method ( (Arg "title"   :: Arg Req String)
               :> (Arg "preview" :: Arg Opt ())
                )
         "POST" "save" "Saves the paste"
+
+mView = Method (Arg "id"      :: Arg Req Int)
+        "GET" "view" "Displays a paste"
