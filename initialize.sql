@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS paste
   , ipaddress TEXT
   , expireon INTEGER
   , language TEXT
+  , channel TEXT
   , parentid  INTEGER
   ) ;
