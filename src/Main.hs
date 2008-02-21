@@ -24,8 +24,6 @@ import Network.FastCGI
 import Network.URI
 import Text.XHtml.Strict
 
-main = runFastCGIConcurrent' forkIO 5 mainCGI
-
 (handlers,docs) = unzip
   [ mNew  --> handleNew
   , mSave --> handleSave
@@ -35,18 +33,7 @@ main = runFastCGIConcurrent' forkIO 5 mainCGI
 
 usage = unlines docs
 
-outputHTML :: String -> CGI CGIResult
-outputHTML s = output . renderHtml $ pre << s
-
-handleNew :: CGI CGIResult
-handleNew = output $ edit_paste_form
-
-handleSave :: String -> String -> String -> Maybe () -> Maybe () -> CGI CGIResult
-handleSave title author content save preview = do
-  mbPasteId <- liftIO $ writePaste title author content
-  case mbPasteId of
-    Right pasteId -> redirect $ exportURL $ methodURL mView pasteId
-    Left e -> output $ "Error: " ++ e
+main = runFastCGIConcurrent' forkIO 5 mainCGI
 
 mainCGI =
  do uri    <- requestURI
@@ -55,26 +42,37 @@ mainCGI =
     let path = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse path) params
     case runAPI c handlers of
-      Nothing         -> outputHTML usage
-      Just (Left err) -> outputHTML err
+      Nothing         -> outputHTML $ pre << usage
+      Just (Left err) -> outputHTML $ pre << err
       Just (Right r)  -> r
+
+handleNew :: CGI CGIResult
+handleNew = outputHTML edit_paste_form
+
+handleSave :: String -> String -> String -> Maybe () -> Maybe ()
+           -> CGI CGIResult
+handleSave title author content save preview = do
+  mbPasteId <- liftIO $ writePaste title author content
+  case mbPasteId of
+    Right pasteId -> redirect $ exportURL $ methodURL mView pasteId
+    Left e -> output $ "Error: " ++ e
 
 handleView :: Int -> CGI CGIResult
 handleView pasteId =
  do res <- liftIO $ getPaste pasteId
     case res of
       Nothing -> output "no such paste"
-      Just x  -> output $ display_paste x
+      Just x  -> outputHTML $ display_paste x
 
 handleList = do
     pastes <- liftIO $ getPastes
-    output (listPage pastes)
+    outputHTML $ list_page pastes
 
-listPage pastes = renderHtml $
+list_page pastes =
   p << show pastes
   +++ unordList (map (\ (i,t) -> toHtml $ show i ++ ": " ++ t) pastes)
 
-edit_paste_form = renderHtml $
+edit_paste_form =
   form ! [action "save", method "post"]
   << ( label ! [thefor "title"] << "Title: "
    +++ textfield "title"
@@ -89,7 +87,7 @@ edit_paste_form = renderHtml $
    +++ submit "submit" "Publish"
      )
 
-display_paste paste = renderHtml $
+display_paste paste =
       h1 << show (paste_title paste)
   +++ p << ("Author: " ++ show (paste_author paste))
   +++ p << ("Date: " ++ show (paste_timestamp paste))
@@ -99,3 +97,6 @@ split d [] = []
 split d xs = case break (==d) xs of
                (a, []) -> [a]
                (a, _:b) -> a : split d b
+
+outputHTML :: HTML a => a -> CGI CGIResult
+outputHTML s = output (renderHtml s)
