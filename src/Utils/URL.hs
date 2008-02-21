@@ -85,9 +85,10 @@ importURL cs1 =
                   return (k,v)
 
 
-exportHost abs = the_prot ++ "://" ++ host abs ++ the_port
-  where the_prot  = "http" ++ if secure abs then "s" else ""
-        the_port  = maybe "" (\x -> ":" ++ show x) (port abs)
+exportHost :: Host -> String
+exportHost h = the_prot ++ "://" ++ host h ++ the_port
+  where the_prot  = "http" ++ if secure h then "s" else ""
+        the_port  = maybe "" (\x -> ":" ++ show x) (port h)
 
 
 
@@ -120,8 +121,8 @@ exportURL url = abs ++ the_path ++ the_params
 -- if we should replace spaces with +.
 encString :: Bool -> (Char -> Bool) -> String -> String
 encString pl p xs = foldr enc1 [] xs
-  where enc1 ' ' xs | pl = '+' : xs
-        enc1 x xs = if p x then x : xs else encChar x ++ xs
+  where enc1 ' ' ys | pl = '+' : ys
+        enc1 x ys = if p x then x : ys else encChar x ++ ys
 
 -- | %-encode a character. Uses UTF8 to represent characters as bytes.
 encChar :: Char -> String

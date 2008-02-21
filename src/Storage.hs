@@ -1,34 +1,19 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 module Storage where
 
 import Database.Sqlite.Enumerator
-import Data.Typeable
-
-data Paste = Paste
-      { paste_id        :: Int
-      , paste_timestamp :: String
-      , paste_content   :: String
-      , paste_title     :: Maybe String
-      , paste_author    :: Maybe String
-      , paste_hostname  :: Maybe String
-      , paste_ipaddress :: Maybe String
-      , paste_expireon  :: Maybe Int
-      , paste_language  :: Maybe String
-      , paste_channel   :: Maybe String
-      , paste_parentid  :: Maybe Int
-      }
- deriving (Typeable, Show)
+import Types
 
 dbConnect = connect "pastes/pastes.db"
 
-getPastes =
- withSession dbConnect $
-   let query = sql "select pasteid, title from paste order by createstamp DESC"
-
-       iter :: Monad m => Int -> String -> IterAct m [(Int, String)]
-       iter a b acc = result' ( (a,b) : acc )
-
-   in reverse `fmap` doQuery query iter []
+getPastes :: Int -> Int -> IO [Paste]
+getPastes limit offset =
+  withSession dbConnect $
+  withPreparedStatement (prepareQuery query) $ \ pstmt ->
+  withBoundStatement pstmt bindings $ \ bstmt ->
+  reverse `fmap` doQuery bstmt iterAll []
+  where
+  query = sql "SELECT * from paste order by createstamp DESC LIMIT ? OFFSET ?"
+  bindings = [bindP limit, bindP offset]
 
 getPaste :: Int -> IO (Maybe Paste)
 getPaste pasteId =
@@ -54,6 +39,22 @@ iterFirst :: (Monad m) =>
              -> IterAct m (Maybe Paste)
 iterFirst a b c d e f g h i j k Nothing =
          return $ Left $ Just $ Paste a b c d e f g h i j k
+
+iterAll      :: (Monad m) =>
+             Int
+             -> String
+             -> String
+             -> Maybe String
+             -> Maybe String
+             -> Maybe String
+             -> Maybe String
+             -> Maybe Int
+             -> Maybe String
+             -> Maybe String
+             -> Maybe Int
+             -> IterAct m [Paste]
+iterAll a b c d e f g h i j k xs =
+         result' $ Paste a b c d e f g h i j k : xs
 
 writePaste :: String -> String -> String -> IO (Either String Int)
 writePaste title author content =

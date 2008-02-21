@@ -73,7 +73,7 @@ methodURLBase (Method _ _ path _) = baseURL path
 methodURL :: Build args f => Method args -> f
 methodURL (Method args _ path _) = build args $ baseURL path
 
-
+baseURL :: String -> URL
 baseURL path =
   URL { url_type     = HostRelative
       , url_path     = path
@@ -131,7 +131,10 @@ instance (Argument r a f, Handler args handler result)
 -- to support situations where accessing arguments happens in a monad.
 -- (e.g., getEnv)
 type Error = ExceptionT String Id
+runError :: Error a -> Either String a
 runError = runId . runExceptionT
+
+err :: String -> Error a
 err x = raise x
 
 parse_arg :: IsArg t => String -> String -> Error t

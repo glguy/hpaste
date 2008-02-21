@@ -13,17 +13,18 @@
 module Main where
 
 import API
+import Pages
 import Storage
 import Utils.URL
 
 import Control.Concurrent
-import Control.Exception hiding (handle)
-import Control.Monad
 import Data.Char
 import Network.FastCGI
 import Network.URI
-import Text.XHtml.Strict
+import Text.XHtml.Strict (renderHtml, HTML())
 
+handlers :: [Context -> Maybe (Either String (CGIT IO CGIResult))]
+docs     :: [String]
 (handlers,docs) = unzip
   [ mNew  --> handleNew
   , mSave --> handleSave
@@ -31,19 +32,22 @@ import Text.XHtml.Strict
   , mList --> handleList
   ]
 
+usage :: String
 usage = unlines docs
 
+main :: IO ()
 main = runFastCGIConcurrent' forkIO 5 mainCGI
 
+mainCGI :: CGIT IO CGIResult
 mainCGI =
  do uri    <- requestURI
     method <- requestMethod
     params <- getInputs
-    let path = uriPath uri
-    let c = Context method (reverse $ takeWhile (/= '/') $ reverse path) params
+    let p = uriPath uri
+    let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
     case runAPI c handlers of
-      Nothing         -> outputHTML $ pre << usage
-      Just (Left err) -> outputHTML $ pre << err
+      Nothing         -> outputHTML usage
+      Just (Left err) -> outputHTML err
       Just (Right r)  -> r
 
 handleNew :: CGI CGIResult
@@ -64,34 +68,10 @@ handleView pasteId =
       Nothing -> output "no such paste"
       Just x  -> outputHTML $ display_paste x
 
+handleList :: CGI CGIResult
 handleList = do
-    pastes <- liftIO $ getPastes
+    pastes <- liftIO $ getPastes 50 0
     outputHTML $ list_page pastes
-
-list_page pastes =
-  p << show pastes
-  +++ unordList (map (\ (i,t) -> toHtml $ show i ++ ": " ++ t) pastes)
-
-edit_paste_form =
-  form ! [action "save", method "post"]
-  << ( label ! [thefor "title"] << "Title: "
-   +++ textfield "title"
-   +++ br
-   +++ label ! [thefor "author"] << "Author: "
-   +++ textfield "author"
-   +++ br
-   +++ label ! [thefor "content"] << "Content:"
-   +++ br
-   +++ textarea ! [name "content"] << noHtml
-   +++ br
-   +++ submit "submit" "Publish"
-     )
-
-display_paste paste =
-      h1 << show (paste_title paste)
-  +++ p << ("Author: " ++ show (paste_author paste))
-  +++ p << ("Date: " ++ show (paste_timestamp paste))
-  +++ p << paste_content paste
 
 split d [] = []
 split d xs = case break (==d) xs of
