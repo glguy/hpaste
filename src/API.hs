@@ -17,3 +17,5 @@ mSave = Method ( (Arg "title"   :: Arg Req String)
 
 mView = Method (Arg "id"      :: Arg Req Int)
         "GET" "view" "Displays a paste"
+
+mList = Method () "GET" "" "List recent pastes"

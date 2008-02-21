@@ -14,6 +14,7 @@ module Main where
 
 import API
 import Storage
+import Utils.URL
 
 import Control.Concurrent
 import Control.Exception hiding (handle)
@@ -29,6 +30,7 @@ main = runFastCGIConcurrent' forkIO 5 mainCGI
   [ mNew  --> handleNew
   , mSave --> handleSave
   , mView --> handleView
+  , mList --> handleList
   ]
 
 usage = unlines docs
@@ -43,7 +45,7 @@ handleSave :: String -> String -> String -> Maybe () -> Maybe () -> CGI CGIResul
 handleSave title author content save preview = do
   mbPasteId <- liftIO $ writePaste title author content
   case mbPasteId of
-    Right pasteId -> redirect (show pasteId)
+    Right pasteId -> redirect $ exportURL $ methodURL mView pasteId
     Left e -> output $ "Error: " ++ e
 
 mainCGI =
@@ -64,13 +66,12 @@ handleView pasteId =
       Nothing -> output "no such paste"
       Just x  -> output $ display_paste x
 
-handle ps = do
+handleList = do
     pastes <- liftIO $ getPastes
-    output (listPage (show ps) pastes)
+    output (listPage pastes)
 
-listPage ps pastes = renderHtml $
-  p << ps
-  +++ p << show pastes
+listPage pastes = renderHtml $
+  p << show pastes
   +++ unordList (map (\ (i,t) -> toHtml $ show i ++ ": " ++ t) pastes)
 
 edit_paste_form = renderHtml $

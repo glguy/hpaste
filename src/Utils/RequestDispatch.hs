@@ -202,7 +202,7 @@ instance IsArg BS.ByteString where
 
 instance IsArg () where
   read_arg _  = return ()
-  show_arg _  = showString ""
-  show_type _ = ""
+  show_arg _  = showString "1"
+  show_type _ = "Anything"
 
 
