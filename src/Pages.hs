@@ -1,6 +1,7 @@
 module Pages where
 
 import Text.XHtml.Strict
+import Text.Highlighting.Kate
 
 import Storage
 import Types
@@ -37,8 +38,7 @@ edit_paste_form = skin "New Paste" $
       << textarea ! [rows "24", cols "80", identifier "content", name "content"]
          << noHtml
   +++ thediv
-      << ( -- the nick form
-          label ! [thefor "author"]
+      << (label ! [thefor "author"]
           << ("author:"
           +++ input ! [ name "author", identifier "author", thetype "text" ]
              )
@@ -48,17 +48,45 @@ edit_paste_form = skin "New Paste" $
       +++ input ! [ thetype "image", alt "save" ,theclass "submit"
                   , src "/static/save.jpg", name "submit" ]
           )
+  +++ thediv
+      << (label ! [thefor "language"]
+          << ("language:" +++ language_drop_down)
+      +++ label ! [thefor "channel"]
+          << ("channel:" +++ channel_drop_down)
+         )
      )
+
+  where
+  language_drop_down = select ! [name "language", identifier "language"]
+                       << (option ! [value ""] << "Plain text"
+                       +++ map language_option languages
+                          )
+
+  language_option "Haskell" = option ! [selected] << "Haskell"
+  language_option l         = option << l
+
+  channel_drop_down = select ! [name "channel", identifier "channel"]
+                      << (option ! [selected] << "#haskell"
+                      +++ option << emphasize << "none"
+                         )
 
 display_paste :: Paste -> Html
 display_paste paste = skin title_text $
       h1 << show (paste_title paste)
+  +++ style ! [thetype "text/css"]
+      << defaultHighlightingCss
   +++ p << ("Author: " ++ show (paste_author paste))
   +++ p << ("Date: " ++ show (paste_timestamp paste))
-  +++ pre ! [theclass "contentbox"] << paste_content paste
+  +++ content
 
   where
   title_text = "Viewing " ++ show_title paste
+
+  content
+    | null (paste_language paste) = pre << paste_content paste
+    | otherwise = case highlightAs (paste_language paste) (paste_content paste) of
+                    Left e -> pre << e
+                    Right ls -> formatAsXHtml [OptNumberLines] (paste_language paste) ls
 
 skin :: String -> Html -> Html
 skin title_text body_html =
@@ -79,8 +107,10 @@ show_id :: Paste -> String
 show_id p     = show $ paste_id p
 
 show_author :: Paste -> String
-show_author p = maybe "(anonymous)" show $ paste_author p
+show_author p | paste_author p == "" = "(anonymous)"
+              | otherwise            = paste_author p
 
 show_title :: Paste -> String
-show_title p  = maybe "(untitled)" show $ paste_title p
+show_title p | paste_title p == "" = "(untitled)"
+             | otherwise           = paste_title p
 

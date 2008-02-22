@@ -15,13 +15,14 @@ module Main where
 import API
 import Pages
 import Storage
+import Types
 import Utils.URL
 
 import Control.Concurrent
 import Data.Char
 import Network.FastCGI
 import Network.URI
-import Text.XHtml.Strict (renderHtml, HTML())
+import Text.XHtml.Strict hiding (URL)
 
 handlers :: [Context -> Maybe (Either String (CGIT IO CGIResult))]
 docs     :: [String]
@@ -53,10 +54,17 @@ mainCGI =
 handleNew :: CGI CGIResult
 handleNew = outputHTML edit_paste_form
 
-handleSave :: String -> String -> String -> Maybe () -> Maybe ()
+handleSave :: String -> String -> String -> String -> String -> Maybe () -> Maybe ()
            -> CGI CGIResult
-handleSave title author content save preview = do
-  mbPasteId <- liftIO $ writePaste title author content
+handleSave title author content language channel save preview = do
+  let paste = Paste { paste_id = 0
+                    , paste_title = title
+                    , paste_author = author
+                    , paste_content = content
+                    , paste_language = language
+                    , paste_channel = channel
+                    }
+  mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId ->
     redirectTo $ methodURL mView pasteId
 
@@ -78,7 +86,8 @@ split d xs = case break (==d) xs of
                (a, _:b) -> a : split d b
 
 outputHTML :: HTML a => a -> CGI CGIResult
-outputHTML s = output (renderHtml s)
+outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
+                  output (filter (/='\r') $ renderHtml s)
 
 redirectTo :: URL -> CGI CGIResult
 redirectTo url = redirect $ exportURL url

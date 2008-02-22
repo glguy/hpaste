@@ -28,13 +28,13 @@ iterFirst :: (Monad m) =>
              Int
              -> String
              -> String
-             -> Maybe String
-             -> Maybe String
+             -> String
+             -> String
              -> Maybe String
              -> Maybe String
              -> Maybe Int
-             -> Maybe String
-             -> Maybe String
+             -> String
+             -> String
              -> Maybe Int
              -> IterAct m (Maybe Paste)
 iterFirst a b c d e f g h i j k Nothing =
@@ -44,27 +44,29 @@ iterAll      :: (Monad m) =>
              Int
              -> String
              -> String
-             -> Maybe String
-             -> Maybe String
+             -> String
+             -> String
              -> Maybe String
              -> Maybe String
              -> Maybe Int
-             -> Maybe String
-             -> Maybe String
+             -> String
+             -> String
              -> Maybe Int
              -> IterAct m [Paste]
 iterAll a b c d e f g h i j k xs =
          result' $ Paste a b c d e f g h i j k : xs
 
-writePaste :: String -> String -> String -> IO (Either String Int)
-writePaste title author content =
-  let query1 = sql "insert into paste (title, author, content) values (?,?,?)"
+writePaste :: Paste -> IO (Either String Int)
+writePaste p =
+  let query1 = sql "insert into paste (title, author, content, language, channel) values (?,?,?,?,?)"
       query2 = sql "select last_insert_rowid()"
 
       iterFirst :: Monad m => Int -> IterAct m (Either String Int)
       iterFirst i _ = return $ Left $ Right i
 
-      bindings = [bindP title, bindP author, bindP content]
+      bindings = [bindP (paste_title p), bindP (paste_author p),
+                  bindP (paste_content p), bindP (paste_language p),
+                  bindP (paste_channel p)]
   in (
   withSession dbConnect $
   withPreparedStatement (prepareQuery query1) $ \ pstmt ->

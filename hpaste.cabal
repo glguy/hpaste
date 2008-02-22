@@ -26,6 +26,7 @@ executable hpaste.fcgi
                      utf8-string,
                      bytestring,
                      monadLib,
+                     highlighting-kate >= 0.2.1,
                      Takusen
 
     if flag(small_base)
