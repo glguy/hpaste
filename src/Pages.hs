@@ -13,18 +13,18 @@ stylesheet = "/hpaste.css"
 
 list_page :: [Paste] -> Html
 list_page pastes = skin "Recent Pastes" $
-  h1 << "Recent Pastes"
+  h2 << "Recent Pastes"
  +++
   table ! [theclass "pastelist"]
   << (table_header
   +++ concatHtml
        [tr
-        << ((td << anchor ! [href $ exportURL $ methodURL mView $ paste_id p]
-                   << show (paste_id p))
-        +++ (td << show_author p)
-        +++ (td << show_title p)
-        +++ (td << show_language p)
-        +++ (td << paste_channel p)
+        << (td << anchor ! [href $ exportURL $ methodURL mView $ paste_id p]
+                  << "view"
+        +++ td << show_author p
+        +++ td << show_title p
+        +++ td << show_language p
+        +++ td << paste_channel p
            )
        | p <- pastes]
      )
@@ -38,7 +38,7 @@ list_page pastes = skin "Recent Pastes" $
 
 edit_paste_form :: Html
 edit_paste_form = skin "New Paste" $
-  h1 << "New Paste"
+  h2 << "New Paste"
  +++
   form ! [action "save", method "post"]
   << (label ! [thefor "content"]
@@ -79,7 +79,7 @@ edit_paste_form = skin "New Paste" $
 
 display_paste :: Paste -> Html
 display_paste paste = skin title_text $
-      h1 << show (paste_title paste)
+      h2 << show (paste_title paste)
   +++ style ! [thetype "text/css"]
       << defaultHighlightingCss
   +++ p << ("Author: " ++ show (paste_author paste))
@@ -106,7 +106,10 @@ skin title_text body_html =
      )
 
   +++
-  body_html
+  body
+  << (h1 << thespan << "hpastetwo"
+  +++ body_html
+     )
   +++
   thediv ! [theclass "footer"]
   << "hpaste 2008 - haskell-based web devel"
