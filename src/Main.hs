@@ -57,15 +57,14 @@ handleSave :: String -> String -> String -> Maybe () -> Maybe ()
            -> CGI CGIResult
 handleSave title author content save preview = do
   mbPasteId <- liftIO $ writePaste title author content
-  case mbPasteId of
-    Right pasteId -> redirect $ exportURL $ methodURL mView pasteId
-    Left e -> output $ "Error: " ++ e
+  log_on_error mbPasteId $ \ pasteId ->
+    redirectTo $ methodURL mView pasteId
 
 handleView :: Int -> CGI CGIResult
 handleView pasteId =
  do res <- liftIO $ getPaste pasteId
     case res of
-      Nothing -> output "no such paste"
+      Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> outputHTML $ display_paste x
 
 handleList :: CGI CGIResult
@@ -80,3 +79,10 @@ split d xs = case break (==d) xs of
 
 outputHTML :: HTML a => a -> CGI CGIResult
 outputHTML s = output (renderHtml s)
+
+redirectTo :: URL -> CGI CGIResult
+redirectTo url = redirect $ exportURL url
+
+log_on_error :: Either String a -> (a -> CGI CGIResult) -> CGI CGIResult
+log_on_error (Right x) f = f x
+log_on_error (Left  e) _ = outputInternalServerError [e]
