@@ -30,6 +30,7 @@ docs     :: [String]
   [ mNew  --> handleNew
   , mSave --> handleSave
   , mView --> handleView
+  , mRaw  --> handleRaw
   , mList --> handleList
   ]
 
@@ -74,6 +75,15 @@ handleView pasteId =
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> outputHTML $ display_paste x
+
+handleRaw :: Int -> CGI CGIResult
+handleRaw pasteId =
+ do res <- liftIO $ getPaste pasteId
+    case res of
+      Nothing -> outputNotFound $ "paste #" ++ show pasteId
+      Just x  -> do setHeader "Content-type" "text/plain"
+                    output $ paste_content x
+
 
 handleList :: CGI CGIResult
 handleList = do

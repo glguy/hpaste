@@ -3,6 +3,8 @@ module Pages where
 import Text.XHtml.Strict
 import Text.Highlighting.Kate
 
+import API
+import Utils.URL
 import Storage
 import Types
 
@@ -17,17 +19,22 @@ list_page pastes = skin "Recent Pastes" $
   << (table_header
   +++ concatHtml
        [tr
-        << ((td << show_id p)
+        << ((td << anchor ! [href $ exportURL $ methodURL mView $ paste_id p]
+                   << show (paste_id p))
         +++ (td << show_author p)
         +++ (td << show_title p)
+        +++ (td << show_language p)
+        +++ (td << paste_channel p)
            )
        | p <- pastes]
      )
   where
 
-  table_header = th << "Paste ID"
+  table_header = th << "#"
              +++ th << "Author"
              +++ th << "Title"
+             +++ th << "Language"
+             +++ th << "Channel"
 
 edit_paste_form :: Html
 edit_paste_form = skin "New Paste" $
@@ -77,13 +84,14 @@ display_paste paste = skin title_text $
       << defaultHighlightingCss
   +++ p << ("Author: " ++ show (paste_author paste))
   +++ p << ("Date: " ++ show (paste_timestamp paste))
-  +++ content
+  +++ thediv ! [theclass "contentbox"] << content
 
   where
   title_text = "Viewing " ++ show_title paste
 
   content
-    | null (paste_language paste) = pre << paste_content paste
+    | null (paste_language paste) = pre ! [theclass "plaintext"]
+                                    << paste_content paste
     | otherwise = case highlightAs (paste_language paste) (paste_content paste) of
                     Left e -> pre << e
                     Right ls -> formatAsXHtml [OptNumberLines] (paste_language paste) ls
@@ -114,3 +122,6 @@ show_title :: Paste -> String
 show_title p | paste_title p == "" = "(untitled)"
              | otherwise           = paste_title p
 
+show_language :: Paste -> String
+show_language p | paste_language p == "" = "Plain"
+                | otherwise              = paste_language p
