@@ -90,7 +90,8 @@ handleView pasteId =
  do res <- liftIO $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just x  -> outputHTML $ display_paste x
+      Just x  -> do kids <- liftIO $ getChildren (pasteId)
+                    outputHTML $ display_pastes x kids
 
 handleRaw :: Int -> CGI CGIResult
 handleRaw pasteId =

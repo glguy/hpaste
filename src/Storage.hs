@@ -15,6 +15,16 @@ getPastes limit offset =
   query = sql "SELECT * from paste order by createstamp DESC LIMIT ? OFFSET ?"
   bindings = [bindP limit, bindP offset]
 
+getChildren :: Int -> IO [Paste]
+getChildren parentid =
+  withSession dbConnect $
+  withPreparedStatement (prepareQuery query) $ \ pstmt ->
+  withBoundStatement pstmt [bindP parentid] $ \ bstmt ->
+  reverse `fmap` doQuery bstmt iterAll []
+  where
+  query = sql $ "SELECT * from paste WHERE parentid = ? "
+             ++ "ORDER BY createstamp ASC"
+
 getPaste :: Int -> IO (Maybe Paste)
 getPaste pasteId =
     withSession dbConnect                      $

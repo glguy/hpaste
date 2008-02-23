@@ -82,8 +82,16 @@ edit_paste_form mb_pasteId starting_text = skin "New Paste" noHtml $
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
+display_pastes :: Paste -> [Paste] -> Html
+display_pastes x xs = skin ("Viewing " ++ show_title x) other_links
+                    $ toHtml $ map display_paste (x:xs)
+  where
+  other_links = anchor ! [href $ exportURL
+                           $ methodURL mNew (Just (paste_id x)) Nothing ]
+                << "add revision"
+
 display_paste :: Paste -> Html
-display_paste paste = skin title_text other_links $
+display_paste paste =
       h2 << paste_title paste
   +++ thediv ! [theclass "entrylinks"]
       << (anchor ! [ href $ exportURL
@@ -106,8 +114,6 @@ display_paste paste = skin title_text other_links $
                    << (thespan ! [theclass "labelkey"] << k
                    +++ thespan ! [theclass "labelvalue"] << v)
 
-  title_text = "Viewing " ++ show_title paste
-
   content
     | null (paste_language paste) = pre ! [theclass "plaintext"]
                                     << paste_content paste
@@ -117,9 +123,6 @@ display_paste paste = skin title_text other_links $
                     Right ls -> formatAsXHtml [OptNumberLines]
                                     (paste_language paste) ls
 
-  other_links = anchor ! [href $ exportURL
-                          $ methodURL mNew (Just (paste_id paste)) Nothing ]
-                << "add revision"
 
 skin :: String -> Html -> Html -> Html
 skin title_text other_links body_html =
