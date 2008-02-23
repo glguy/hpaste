@@ -92,6 +92,11 @@ handleSave title author content language channel mb_parent save preview = do
                     , paste_language = language
                     , paste_channel = channel
                     , paste_parentid = mb_parent1
+                    -- overwritten:
+                    , paste_timestamp = ""
+                    , paste_hostname = Nothing
+                    , paste_expireon = Nothing
+                    , paste_ipaddress = Nothing
                     }
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
