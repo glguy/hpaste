@@ -20,6 +20,7 @@ import Utils.URL
 
 import Control.Concurrent
 import Data.Char
+import Data.Maybe (fromMaybe)
 import Network.FastCGI
 import Network.URI
 import Text.XHtml.Strict hiding (URL)
@@ -64,13 +65,21 @@ handleNew mb_pasteId _ = outputHTML $ edit_paste_form mb_pasteId ""
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> CGI CGIResult
 handleSave title author content language channel mb_parent save preview = do
+  mb_parent1 <- case mb_parent of
+                  Nothing -> return Nothing
+                  Just parent ->
+                    do ppaste <- liftIO $ getPaste parent
+                       case ppaste of
+                         Nothing -> return Nothing
+                         Just x -> return $ Just $ fromMaybe (paste_id x)
+                                                             (paste_parentid x)
   let paste = Paste { paste_id = 0
                     , paste_title = title
                     , paste_author = author
                     , paste_content = content
                     , paste_language = language
                     , paste_channel = channel
-                    , paste_parentid = mb_parent
+                    , paste_parentid = mb_parent1
                     }
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId ->
