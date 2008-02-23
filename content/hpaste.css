@@ -1,0 +1,102 @@
+span.labelkey {
+  margin-left: 10px;
+  color: #bbb;
+  font-style: italic;
+}
+span.labelitem {
+  background-color: #eee;
+  margin-right: 10px;
+  background-image: url(/graycorner.png);
+  background-repeat: no-repeat;
+  padding: 2px;
+}
+span.labelvalue {
+  margin-left: 10px;
+  background-color: white;
+  padding: 0 5px;
+}
+div.labels {
+}
+
+div.footer {
+  text-align: center;
+  margin-top: 10px;
+  font-size: smaller;
+  color: #428bdd;
+}
+
+table.pastelist {
+  border-collapse: collapse;
+  border-bottom: 0
+  color: black;
+  width: 100%;
+}
+
+table.pastelist td {
+  border-bottom: 1px dotted silver;
+  padding: 2px
+}
+
+
+table.pastelist th {
+  border-bottom: 1px solid black;
+  text-align: left;
+}
+
+pre.plaintext {
+  margin: 5px;
+}
+
+div.contentbox {
+border: 2px solid #eee;
+}
+
+body { font-family: sans-serif
+     ; font-size:normal
+     ; font-size-adjust:none
+     ; font-style:normal
+     ; font-variant:normal
+     ; font-weight:normal
+     ; background-image: url(/grayshadowedstripe.png)
+     ; background-repeat: repeat-y
+     ; margin: 10px 10%
+     }
+
+h1 span { display: none }
+h1 { width: 343px;
+     height: 70px;
+     background-image: url(/hpastetwo.png);
+     background-repeat: no-repeat;
+}
+
+table.pastelist a {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  background-color: white;
+  border-bottom: 1px solid gray;
+  border-top: 1px solid #eee;
+  border-left: 1px solid #eee;
+  border-right: 1px solid gray;
+  margin: 2px;
+}
+table.pastelist a:hover {
+  background-color: #cccccc;
+  border-top: 1px solid #666;
+  border-bottom: 1px solid #aaa;
+  border-right: 1px solid #aaa;
+  border-left: 1px solid #666;
+}
+
+table.pastelist a:active {
+  background-color: #999;
+  border-top: 1px solid #666;
+  border-bottom: 1px solid #aaa;
+  border-right: 1px solid #aaa;
+  border-left: 1px solid #666;
+}
+
+h2 {
+  color: #428bdd;
+  border-bottom: 1px solid #ccc;
+}
