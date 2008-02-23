@@ -83,7 +83,7 @@ handleSave title author content language channel mb_parent save preview = do
                     }
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId ->
-    redirectTo $ methodURL mView pasteId
+    redirectTo $ methodURL mView $ fromMaybe pasteId (mb_parent1)
 
 handleView :: Int -> CGI CGIResult
 handleView pasteId =
