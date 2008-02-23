@@ -30,20 +30,20 @@ list_page pastes = skin "Recent Pastes" $
      )
   where
 
-  table_header = th << "#"
+  table_header = th << spaceHtml
              +++ th << "Author"
              +++ th << "Title"
              +++ th << "Language"
              +++ th << "Channel"
 
-edit_paste_form :: Html
-edit_paste_form = skin "New Paste" $
+edit_paste_form :: Maybe Int -> String -> Html
+edit_paste_form mb_pasteId starting_text = skin "New Paste" $
   h2 << "New Paste"
  +++
   form ! [action "save", method "post"]
   << (label ! [thefor "content"]
       << textarea ! [rows "24", cols "80", identifier "content", name "content"]
-         << noHtml
+         << starting_text
   +++ thediv
       << (label ! [thefor "author"]
           << ("author:"
@@ -61,7 +61,8 @@ edit_paste_form = skin "New Paste" $
       +++ label ! [thefor "channel"]
           << ("channel:" +++ channel_drop_down)
          )
-     )
+  +++ parent_field
+      )
 
   where
   language_drop_down = select ! [name "language", identifier "language"]
@@ -77,16 +78,27 @@ edit_paste_form = skin "New Paste" $
                       +++ option << emphasize << "none"
                          )
 
+  parent_field = case mb_pasteId of
+                   Just pasteId -> hidden "parent" (show pasteId)
+                   Nothing      -> noHtml
+
 display_paste :: Paste -> Html
 display_paste paste = skin title_text $
-      h2 << show (paste_title paste)
+      h2 << paste_title paste
   +++ style ! [thetype "text/css"]
       << defaultHighlightingCss
-  +++ p << ("Author: " ++ show (paste_author paste))
-  +++ p << ("Date: " ++ show (paste_timestamp paste))
+  +++ thediv ! [theclass "labels"]
+      << (make_label "author" (paste_author paste)
+      +++ make_label "date" (paste_timestamp paste)
+      +++ make_label "language" (show_language paste)
+         )
   +++ thediv ! [theclass "contentbox"] << content
 
   where
+  make_label k v = thespan ! [theclass "labelitem"]
+                   << (thespan ! [theclass "labelkey"] << k
+                   +++ thespan ! [theclass "labelvalue"] << v)
+
   title_text = "Viewing " ++ show_title paste
 
   content

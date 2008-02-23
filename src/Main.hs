@@ -52,18 +52,25 @@ mainCGI =
       Just (Left err) -> outputHTML err
       Just (Right r)  -> r
 
-handleNew :: CGI CGIResult
-handleNew = outputHTML edit_paste_form
+handleNew :: Maybe Int -> Maybe () -> CGI CGIResult
+handleNew (Just pasteId) (Just ()) =
+ do res <- liftIO $ getPaste pasteId
+    case res of
+      Nothing -> outputNotFound $ "paste #" ++ show pasteId
+      Just p  -> outputHTML $ edit_paste_form (Just pasteId) (paste_content p)
 
-handleSave :: String -> String -> String -> String -> String -> Maybe () -> Maybe ()
-           -> CGI CGIResult
-handleSave title author content language channel save preview = do
+handleNew mb_pasteId _ = outputHTML $ edit_paste_form mb_pasteId ""
+
+handleSave :: String -> String -> String -> String -> String -> Maybe Int
+           -> Maybe () -> Maybe () -> CGI CGIResult
+handleSave title author content language channel mb_parent save preview = do
   let paste = Paste { paste_id = 0
                     , paste_title = title
                     , paste_author = author
                     , paste_content = content
                     , paste_language = language
                     , paste_channel = channel
+                    , paste_parentid = mb_parent
                     }
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId ->
