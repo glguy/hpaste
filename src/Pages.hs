@@ -12,7 +12,7 @@ stylesheet :: String
 stylesheet = "/hpaste.css"
 
 list_page :: [Paste] -> Html
-list_page pastes = skin "Recent Pastes" $
+list_page pastes = skin "Recent Pastes" noHtml $
   h2 << "Recent Pastes"
  +++
   table ! [theclass "pastelist"]
@@ -37,7 +37,7 @@ list_page pastes = skin "Recent Pastes" $
              +++ th << "Channel"
 
 edit_paste_form :: Maybe Int -> String -> Html
-edit_paste_form mb_pasteId starting_text = skin "New Paste" $
+edit_paste_form mb_pasteId starting_text = skin "New Paste" noHtml $
   h2 << "New Paste"
  +++
   form ! [action "save", method "post"]
@@ -83,8 +83,12 @@ edit_paste_form mb_pasteId starting_text = skin "New Paste" $
                    Nothing      -> noHtml
 
 display_paste :: Paste -> Html
-display_paste paste = skin title_text $
+display_paste paste = skin title_text other_links $
       h2 << paste_title paste
+  +++ thediv ! [theclass "entrylinks"]
+      << anchor ! [ href $ exportURL
+                         $ methodURL mNew (Just (paste_id paste)) (Just ())]
+         << "add modification"
   +++ style ! [thetype "text/css"]
       << defaultHighlightingCss
   +++ thediv ! [theclass "labels"]
@@ -104,12 +108,18 @@ display_paste paste = skin title_text $
   content
     | null (paste_language paste) = pre ! [theclass "plaintext"]
                                     << paste_content paste
-    | otherwise = case highlightAs (paste_language paste) (paste_content paste) of
+    | otherwise = case highlightAs (paste_language paste)
+                                   (paste_content paste) of
                     Left e -> pre << e
-                    Right ls -> formatAsXHtml [OptNumberLines] (paste_language paste) ls
+                    Right ls -> formatAsXHtml [OptNumberLines]
+                                    (paste_language paste) ls
 
-skin :: String -> Html -> Html
-skin title_text body_html =
+  other_links = anchor ! [href $ exportURL
+                          $ methodURL mNew (Just (paste_id paste)) Nothing ]
+                << "add revision"
+
+skin :: String -> Html -> Html -> Html
+skin title_text other_links body_html =
   header
   << (thetitle << (title_text ++ " - hpaste")
   +++ thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
@@ -120,6 +130,11 @@ skin title_text body_html =
   +++
   body
   << (h1 << thespan << "hpastetwo"
+  +++ thediv ! [theclass "toplinks"]
+      << (anchor ! [href $ exportURL $ methodURL mList] << "recent"
+      +++ anchor ! [href $ exportURL $ methodURL mNew Nothing Nothing] << "new"
+      +++ other_links
+         )
   +++ body_html
      )
   +++
