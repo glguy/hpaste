@@ -18,23 +18,23 @@ executable hpastebot
     main-is:         Bot.hs
     ghc-options:     -threaded
     hs-source-dirs:  src
-    build-depends:   irc,
-                     Takusen
+    build-depends:   irc               >= 0.4,
+                     Takusen           == 0.7
 
 executable hpaste.fcgi
     main-is:         Main.hs
     ghc-options:     -threaded
     extensions:      PatternSignatures
     hs-source-dirs:  src
-    build-depends:   fastcgi,
-                     xhtml      >= 3000.0.2.1,
-                     network    >= 2.1.0.0,
-                     cgi        >= 3001.1.5.1,
-                     utf8-string,
-                     bytestring,
-                     monadLib,
+    build-depends:   fastcgi           >= 3001.0.1,
+                     xhtml             >= 3000.0.2.1,
+                     cgi               >= 3001.1.5.1,
+                     network           >= 2.1.0.0,
+                     utf8-string       >= 0.2,
+                     monadLib          >= 3.4.4,
+                     bytestring        >= 0.9.0.1,
                      highlighting-kate >= 0.2.1,
-                     Takusen
+                     Takusen           == 0.7
 
     if flag(small_base)
         build-depends: base >= 3, containers
