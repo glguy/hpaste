@@ -84,3 +84,10 @@ writePaste p =
    do execDML bstmt
       (Right . fromIntegral) `fmap` inquire LastInsertRowid
   ) `catchDB` \ e -> return (Left (show e))
+
+getChannels :: IO [String]
+getChannels = withSession dbConnect $ reverse `fmap` doQuery query iter []
+  where
+  query = sql "SELECT channelname from channel ORDER BY channelname"
+  iter :: Monad m => String -> IterAct m [String]
+  iter x xs = result' (x:xs)

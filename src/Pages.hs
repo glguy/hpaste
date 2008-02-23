@@ -36,8 +36,8 @@ list_page pastes = skin "Recent Pastes" noHtml $
              +++ th << "Language"
              +++ th << "Channel"
 
-edit_paste_form :: Maybe Int -> String -> Html
-edit_paste_form mb_pasteId starting_text = skin "New Paste" noHtml $
+edit_paste_form :: [String] -> Maybe Int -> String -> Html
+edit_paste_form chans mb_pasteId starting_text = skin "New Paste" noHtml $
   h2 << "New Paste"
  +++
   form ! [action "save", method "post"]
@@ -74,8 +74,8 @@ edit_paste_form mb_pasteId starting_text = skin "New Paste" noHtml $
   language_option l         = option << l
 
   channel_drop_down = select ! [name "channel", identifier "channel"]
-                      << (option ! [selected] << "#haskell"
-                      +++ option << emphasize << "none"
+                      << (option << emphasize << "none"
+                      +++ map (option <<) chans
                          )
 
   parent_field = case mb_pasteId of

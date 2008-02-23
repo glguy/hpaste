@@ -11,3 +11,7 @@ CREATE TABLE IF NOT EXISTS paste
   , channel TEXT  NOT NULL
   , parentid  INTEGER
   ) ;
+CREATE TABLE IF NOT EXISTS channel
+  ( channelid INTEGER PRIMARY KEY
+  , channelname TEXT NOT NULL UNIQUE
+  );

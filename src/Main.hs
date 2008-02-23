@@ -20,7 +20,7 @@ import Utils.URL
 
 import Control.Concurrent
 import Data.Char
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isNothing)
 import Network.FastCGI
 import Network.URI
 import Text.XHtml.Strict hiding (URL)
@@ -54,13 +54,20 @@ mainCGI =
       Just (Right r)  -> r
 
 handleNew :: Maybe Int -> Maybe () -> CGI CGIResult
-handleNew (Just pasteId) (Just ()) =
- do res <- liftIO $ getPaste pasteId
-    case res of
-      Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just p  -> outputHTML $ edit_paste_form (Just pasteId) (paste_content p)
-
-handleNew mb_pasteId _ = outputHTML $ edit_paste_form mb_pasteId ""
+handleNew mb_pasteId edit =
+ do chans <- liftIO getChannels
+    mb_text <- get_text
+    log_on_error mb_text $ \ text ->
+      outputHTML $ edit_paste_form chans mb_pasteId text
+  where
+  get_text =
+    if isNothing edit then return $ Right ""
+    else case mb_pasteId of
+           Nothing -> return $ Right ""
+           Just x  -> do res <- liftIO $ getPaste x
+                         return $ case res of
+                                    Just r -> Right $ paste_content r
+                                    Nothing -> Left "no such paste"
 
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> CGI CGIResult
