@@ -86,9 +86,12 @@ display_paste :: Paste -> Html
 display_paste paste = skin title_text other_links $
       h2 << paste_title paste
   +++ thediv ! [theclass "entrylinks"]
-      << anchor ! [ href $ exportURL
-                         $ methodURL mNew (Just (paste_id paste)) (Just ())]
-         << "add modification"
+      << (anchor ! [ href $ exportURL
+                          $ methodURL mNew (Just (paste_id paste)) (Just ())]
+          << "add modification"
+      +++ anchor ! [href $ exportURL $ methodURL mRaw (paste_id paste)]
+          << "raw"
+         )
   +++ style ! [thetype "text/css"]
       << defaultHighlightingCss
   +++ thediv ! [theclass "labels"]
