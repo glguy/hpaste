@@ -37,8 +37,8 @@ list_page pastes = skin "Recent Pastes" noHtml $
              +++ th << "Channel"
 
 edit_paste_form :: [String] -> Maybe Int -> String -> Html
-edit_paste_form chans mb_pasteId starting_text = skin "New Paste" noHtml $
-  h2 << "New Paste"
+edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
+  h2 << page_title
  +++
   form ! [action "save", method "post"]
   << (thediv ! [theclass "tabsrow1"]
@@ -67,6 +67,9 @@ edit_paste_form chans mb_pasteId starting_text = skin "New Paste" noHtml $
       )
 
   where
+  page_title = case mb_pasteId of Just _ -> "New Revision"
+                                  Nothing -> "New Paste"
+
   language_drop_down = select ! [name "language", identifier "language"]
                        << (option ! [value ""] << "Plain text"
                        +++ map language_option languages
