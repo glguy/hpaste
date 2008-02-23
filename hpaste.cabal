@@ -14,6 +14,13 @@ cabal-version:  >= 1.2
 flag small_base
     description: Choose the new smaller, split-up base package.
 
+executable hpastebot
+    main-is:         Bot.hs
+    ghc-options:     -threaded
+    hs-source-dirs:  src
+    build-depends:   irc,
+                     Takusen
+
 executable hpaste.fcgi
     main-is:         Main.hs
     ghc-options:     -threaded

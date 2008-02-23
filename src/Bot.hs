@@ -10,6 +10,8 @@ import System.IO
 import Utils.Misc
 
 import Bot.Base
+import Types
+import Storage
 
 main :: IO ()
 main =
@@ -20,11 +22,12 @@ main =
      do initialize botnick username realname
         fork listener
         fork writer
-        fork $ announcer fifo
+        fork $ announcer fifo baseurl
     takeMVar done
 
   where
         host = "irc.freenode.org"
+        baseurl = "http://localhost/cgi-bin/hpaste.fcgi/"
         botnick = "hpaste__"
         username = "hpaste"
         realname = "announcer"
@@ -50,6 +53,8 @@ listener = forever $
 
 handle_message m@(Message p "PING" xs) = return [Message p "PONG" xs]
 handle_message m@(Message _ "PRIVMSG" [_,"quit"]) = end_bot >> return []
+handle_message m@(Message _ "PRIVMSG" [_,'j':' ':chan]) =
+                                io (addChannel chan) >> return [joinChan chan]
 handle_message m = io (print m) >> return []
 
 writer :: M ()
@@ -64,11 +69,19 @@ waiter flood_time message =
     send_message message
     return $ max (now + 2) (flood_time + 2)
 
-announcer :: FilePath -> M ()
-announcer fifo = forever $
- do h <- io $ openFile fifo ReadMode
-    xs <- io $ hGetLine h
-    io  $ print xs
-    announce xs
+announcer :: FilePath -> String -> M ()
+announcer fifo baseurl =
+ do s <- io $ listenOn $ UnixSocket "pastes/announce"
+    (forever $ do (h,_,_) <- io $ accept s
+                  xs <- io $ hGetLine h
+                  io $ print xs
+                  announce baseurl (read xs)
+     )
 
-announce a = schedule_messages [ privmsg "#glguy-hpaste" $ "New paste: " ++ a ]
+announce baseurl a =
+ do res <- io $ getPaste a
+    whenJust res $ \ paste -> do
+      let c = paste_channel paste
+      chans <- io $ getChannels
+      when (c `elem` chans) $
+       schedule_messages [ privmsg c $ "New paste: " ++ paste_title paste ]

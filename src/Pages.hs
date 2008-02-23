@@ -41,25 +41,27 @@ edit_paste_form chans mb_pasteId starting_text = skin "New Paste" noHtml $
   h2 << "New Paste"
  +++
   form ! [action "save", method "post"]
-  << (label ! [thefor "content"]
-      << textarea ! [rows "24", cols "80", identifier "content", name "content"]
-         << starting_text
-  +++ thediv
+  << (thediv ! [theclass "tabsrow1"]
       << (label ! [thefor "author"]
-          << ("author:"
+          << (thespan << "author "
           +++ input ! [ name "author", identifier "author", thetype "text" ]
              )
       +++ label ! [thefor "title"]
-           << ("title:" +++ textfield "title")
+           << (thespan << "title " +++ textfield "title")
 
       +++ input ! [ thetype "image", alt "save" ,theclass "submit"
                   , src "/static/save.jpg", name "submit" ]
           )
-  +++ thediv
+  +++ thediv ! [theclass "tabsrow2"]
       << (label ! [thefor "language"]
-          << ("language:" +++ language_drop_down)
+          << (thespan << "language " +++ language_drop_down)
       +++ label ! [thefor "channel"]
-          << ("channel:" +++ channel_drop_down)
+          << (thespan << "channel " +++ channel_drop_down)
+         )
+  +++ label ! [thefor "content"]
+      << ("content "
+      +++ textarea ! [rows "24", cols "80",identifier "content",name "content"]
+          << starting_text
          )
   +++ parent_field
       )

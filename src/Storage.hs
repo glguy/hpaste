@@ -91,3 +91,14 @@ getChannels = withSession dbConnect $ reverse `fmap` doQuery query iter []
   query = sql "SELECT channelname from channel ORDER BY channelname"
   iter :: Monad m => String -> IterAct m [String]
   iter x xs = result' (x:xs)
+
+addChannel :: String -> IO ()
+addChannel chan = (
+  withSession dbConnect $
+  withPreparedStatement (prepareQuery query)  $ \ pstmt ->
+  withBoundStatement pstmt [bindP chan]       $ \ bstmt ->
+  execDML bstmt >>
+  return ()
+  ) `catchDB` \ _ -> return ()
+  where
+  query = sql "INSERT INTO channel (channelname) VALUES (?)"

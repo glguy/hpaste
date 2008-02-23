@@ -19,10 +19,15 @@ import Types
 import Utils.URL
 
 import Control.Concurrent
+import Control.Monad (unless)
+import Control.Exception
 import Data.Char
 import Data.Maybe (fromMaybe, isNothing)
 import Network.FastCGI
 import Network.URI
+import Network
+import Prelude hiding (catch)
+import System.IO
 import Text.XHtml.Strict hiding (URL)
 
 handlers :: [Context -> Maybe (Either String (CGIT IO CGIResult))]
@@ -89,8 +94,14 @@ handleSave title author content language channel mb_parent save preview = do
                     , paste_parentid = mb_parent1
                     }
   mbPasteId <- liftIO $ writePaste paste
-  log_on_error mbPasteId $ \ pasteId ->
+  log_on_error mbPasteId $ \ pasteId -> do
+    unless (null channel) $ liftIO $ announce pasteId
     redirectTo $ methodURL mView $ fromMaybe pasteId (mb_parent1)
+
+announce :: Int -> IO ()
+announce pasteId = (bracket (connectTo "" $ UnixSocket "pastes/announce")
+                           hClose $ \ h -> hPutStrLn h $ show pasteId
+                   ) `catch` \ _ -> return ()
 
 handleView :: Int -> CGI CGIResult
 handleView pasteId =
