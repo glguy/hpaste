@@ -86,7 +86,7 @@ getConfig =
 
 handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
- do chans <- liftIO getChannels
+ do chans <- exec_db getChannels
     mb_text <- get_text
     log_on_error mb_text $ \ text ->
       outputHTML $ edit_paste_form chans mb_pasteId text
@@ -95,7 +95,7 @@ handleNew mb_pasteId edit =
     if isNothing edit then return $ Right ""
     else case mb_pasteId of
            Nothing -> return $ Right ""
-           Just x  -> do res <- liftIO $ getPaste x
+           Just x  -> do res <- exec_db $ getPaste x
                          return $ case res of
                                     Just r -> Right $ paste_content r
                                     Nothing -> Left "no such paste"
@@ -116,7 +116,7 @@ handleSave title author content language channel mb_parent save preview =
         then outputHTML $ error_page validation_msgs
         else do
   mb_parent1 <- liftIO $ topmost_parent mb_parent
-  chans <- liftIO $ getChannels
+  chans <- exec_db getChannels
   let channel1 = if channel `elem` chans then channel else ""
   ip <- remoteAddr
   hostname <- remoteHost
@@ -133,7 +133,7 @@ handleSave title author content language channel mb_parent save preview =
                     , paste_timestamp = Nothing
                     , paste_expireon = Nothing
                     }
-  mbPasteId <- liftIO $ writePaste paste
+  mbPasteId <- exec_db $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
     unless (null channel1) $ liftIO $ announce pasteId
     handleView (fromMaybe pasteId mb_parent1)
@@ -145,16 +145,16 @@ announce pasteId = (bracket (connectTo "" $ UnixSocket "pastes/announce")
 
 handleView :: Int -> Action
 handleView pasteId =
- do res <- liftIO $ getPaste pasteId
+ do res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just x  -> do kids <- liftIO $ getChildren (pasteId)
+      Just x  -> do kids <- exec_db $ getChildren (pasteId)
                     now <- liftIO $ getCurrentTime
                     outputHTML $ display_pastes now x kids
 
 handleRaw :: Int -> Action
 handleRaw pasteId =
- do res <- liftIO $ getPaste pasteId
+ do res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do setHeader "Content-type" "text/plain"
@@ -165,7 +165,7 @@ handleList :: Maybe String -> Maybe Int -> Action
 handleList pat offset = do
     let offset1 = max 0 $ fromMaybe 0 offset
     n <- pastes_per_page `fmap` get_conf
-    pastes <- liftIO $ getPastes pat (n+1) (offset1 * n)
+    pastes <- exec_db $ getPastes pat (n+1) (offset1 * n)
     now <- liftIO $ getCurrentTime
     outputHTML $ list_page now pastes offset1
 
@@ -179,6 +179,10 @@ buildHTML :: PageM a -> PasteM a
 buildHTML m      = do sn <- scriptName
                       conf <- get_conf
                       return $ runPageM conf sn m
+
+exec_db :: StoreM a -> PasteM a
+exec_db m = do path <- db_path `fmap` get_conf
+               liftIO (runStoreM path m)
 
 outputHTML :: HTML a => PageM a -> PasteM CGIResult
 outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
