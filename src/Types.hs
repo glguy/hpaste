@@ -2,10 +2,11 @@
 module Types where
 
 import Data.Typeable
+import Data.Time
 
 data Paste = Paste
       { paste_id        :: Int
-      , paste_timestamp :: String
+      , paste_timestamp :: !(Maybe UTCTime)
       , paste_content   :: String
       , paste_title     :: String
       , paste_author    :: String

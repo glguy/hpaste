@@ -3,6 +3,13 @@ module Storage where
 
 import Database.Sqlite.Enumerator
 import Types
+import Data.Time
+import Data.Time.Format
+import System.Locale
+
+
+parse_time :: String -> Maybe UTCTime
+parse_time = parseTime defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q"
 
 dbConnect = connect "pastes/pastes.db"
 
@@ -57,7 +64,7 @@ iterFirst :: (Monad m) =>
              -> Maybe Int
              -> IterAct m (Maybe Paste)
 iterFirst a b c d e f g h i j k Nothing =
-         return $ Left $ Just $ Paste a b c d e f g h i j k
+         return $ Left $ Just $ Paste a (parse_time b) c d e f g h i j k
 
 iterAll      :: (Monad m) =>
              Int
@@ -73,7 +80,7 @@ iterAll      :: (Monad m) =>
              -> Maybe Int
              -> IterAct m [Paste]
 iterAll a b c d e f g h i j k xs =
-         result' $ Paste a b c d e f g h i j k : xs
+         result' $ Paste a (parse_time b) c d e f g h i j k : xs
 
 writePaste :: Paste -> IO (Either String Int)
 writePaste p =

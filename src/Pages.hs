@@ -2,6 +2,7 @@ module Pages where
 
 import Text.XHtml.Strict
 import Text.Highlighting.Kate
+import Data.Time
 
 import API
 import Utils.URL
@@ -87,16 +88,17 @@ edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
-display_pastes :: Paste -> [Paste] -> Html
-display_pastes x xs = skin ("Viewing " ++ show_title x) other_links
-                    $ toHtml $ map display_paste (x:xs)
+display_pastes :: UTCTime -> Paste -> [Paste] -> Html
+display_pastes now x xs =
+  skin ("Viewing " ++ show_title x) other_links
+  $ toHtml $ map (display_paste now) (x:xs)
   where
   other_links = anchor ! [href $ exportURL
                            $ methodURL mNew (Just (paste_id x)) Nothing ]
                 << "add revision"
 
-display_paste :: Paste -> Html
-display_paste paste =
+display_paste :: UTCTime -> Paste -> Html
+display_paste now paste =
       h2 << paste_title paste
   +++ thediv ! [theclass "entrylinks"]
       << (anchor ! [ href $ exportURL
@@ -109,7 +111,7 @@ display_paste paste =
       << defaultHighlightingCss
   +++ thediv ! [theclass "labels"]
       << (make_label "author" (paste_author paste)
-      +++ make_label "date" (paste_timestamp paste)
+      +++ make_label "age" (show_ago now (paste_timestamp paste))
       +++ make_label "language" (show_language paste)
          )
   +++ thediv ! [theclass "contentbox"] << content
@@ -166,3 +168,16 @@ show_title p | paste_title p == "" = "(untitled)"
 show_language :: Paste -> String
 show_language p | paste_language p == "" = "Plain"
                 | otherwise              = paste_language p
+
+show_ago :: UTCTime -> Maybe UTCTime -> String
+show_ago now Nothing = "unknown"
+show_ago now (Just earlier) =
+  let d = truncate $ diffUTCTime now earlier
+  in if d == 0 then "new" else
+     if d == 1 then "1 second" else
+     if d < 60 then show d ++ " seconds" else
+     if d < 120 then "1 minute" else
+     if d < 3600 then show (d `div` 60) ++ " minutes" else
+     if d < 7200 then "1 hour" else
+     if d < 86400 then show (d `div` 3600) ++ " hours" else
+     if d < 172800 then "1 day" else show (d `div` 86400) ++ " days"
