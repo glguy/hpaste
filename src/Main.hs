@@ -152,7 +152,8 @@ handleList :: Maybe String -> Maybe Int -> Action
 handleList pat offset conf = do
     let offset1 = max 0 $ fromMaybe 0 offset
     pastes <- liftIO $ getPastes pat 21 (offset1 * 20)
-    outputHTML conf $ list_page pastes offset1
+    now <- liftIO $ getCurrentTime
+    outputHTML conf $ list_page now pastes offset1
 
 split d [] = []
 split d xs = case break (==d) xs of

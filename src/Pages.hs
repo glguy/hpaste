@@ -28,8 +28,8 @@ make_url url = do b <- asks page_env_baseurl
                   return $ b ++ exportURL url
 
 
-list_page :: [Paste] -> Int -> PageM Html
-list_page pastes offset =
+list_page :: UTCTime -> [Paste] -> Int -> PageM Html
+list_page now pastes offset =
   mapM (make_url . methodURL mView . paste_id) pastes >>= \ urls ->
   make_url (methodURL mList Nothing (Just (offset + 1))) >>= \ earlier_url ->
   make_url (methodURL mList Nothing (Just (offset - 1))) >>= \ later_url ->
@@ -43,6 +43,7 @@ list_page pastes offset =
         << (td << anchor ! [href view_url] << "view"
         +++ td << show_author p
         +++ td << show_title p
+        +++ td << show_ago now p
         +++ td << show_language p
         +++ td << paste_channel p
            )
@@ -67,6 +68,7 @@ list_page pastes offset =
   table_header = th << spaceHtml
              +++ th << "Author"
              +++ th << "Title"
+             +++ th << "Age"
              +++ th << "Language"
              +++ th << "Channel"
 
@@ -142,7 +144,7 @@ display_paste now paste =
       << defaultHighlightingCss
   +++ thediv ! [theclass "labels"]
       << (make_label "author" (paste_author paste)
-      +++ make_label "age" (show_ago now (paste_timestamp paste))
+      +++ make_label "age" (show_ago now paste)
       +++ make_label "language" (show_language paste)
          )
   +++ thediv ! [theclass "contentbox"] << content
@@ -205,15 +207,17 @@ show_language :: Paste -> String
 show_language p | paste_language p == "" = "Plain"
                 | otherwise              = paste_language p
 
-show_ago :: UTCTime -> Maybe UTCTime -> String
-show_ago now Nothing = "unknown"
-show_ago now (Just earlier) =
-  let d = truncate $ diffUTCTime now earlier
-  in if d == 0 then "new" else
-     if d == 1 then "1 second" else
-     if d < 60 then show d ++ " seconds" else
-     if d < 120 then "1 minute" else
-     if d < 3600 then show (d `div` 60) ++ " minutes" else
-     if d < 7200 then "1 hour" else
-     if d < 86400 then show (d `div` 3600) ++ " hours" else
-     if d < 172800 then "1 day" else show (d `div` 86400) ++ " days"
+show_ago :: UTCTime -> Paste -> String
+show_ago now paste = helper (paste_timestamp paste)
+  where
+  helper Nothing = "unknown"
+  helper (Just earlier) =
+    let d = truncate $ diffUTCTime now earlier
+    in if d == 0 then "new" else
+       if d == 1 then "1 second" else
+       if d < 60 then show d ++ " seconds" else
+       if d < 120 then "1 minute" else
+       if d < 3600 then show (d `div` 60) ++ " minutes" else
+       if d < 7200 then "1 hour" else
+       if d < 86400 then show (d `div` 3600) ++ " hours" else
+       if d < 172800 then "1 day" else show (d `div` 86400) ++ " days"
