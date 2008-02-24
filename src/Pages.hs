@@ -1,33 +1,52 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Pages where
 
-import Text.XHtml.Strict
+import Text.XHtml.Strict hiding (URL)
 import Text.Highlighting.Kate
 import Data.Time
+import MonadLib
 
 import API
 import Utils.URL
 import Storage
 import Types
 
+
+data PageEnv = PageEnv { page_env_baseurl :: String
+                       }
+
+newtype PageM a = PageM (ReaderT PageEnv Id a)
+ deriving (Monad, Functor)
+
+
+runPageM baseurl (PageM m) = runId $ runReaderT (PageEnv baseurl) m
+asks f = f `fmap` PageM ask
+
+make_url :: URL -> PageM String
+make_url url = do b <- asks page_env_baseurl
+                  return $ b ++ exportURL url
+
+
 stylesheet :: String
 stylesheet = "/hpaste.css"
 
-list_page :: [Paste] -> Html
-list_page pastes = skin "Recent Pastes" noHtml $
+list_page :: [Paste] -> PageM Html
+list_page pastes =
+  mapM (make_url . methodURL mView . paste_id) pastes >>= \ urls ->
+  skin "Recent Pastes" noHtml $
   h2 << "Recent Pastes"
  +++
   table ! [theclass "pastelist"]
   << (table_header
   +++ concatHtml
        [tr
-        << (td << anchor ! [href $ exportURL $ methodURL mView $ paste_id p]
-                  << "view"
+        << (td << anchor ! [href view_url] << "view"
         +++ td << show_author p
         +++ td << show_title p
         +++ td << show_language p
         +++ td << paste_channel p
            )
-       | p <- pastes]
+       | (p,view_url) <- zip pastes urls]
      )
   where
 
@@ -37,7 +56,7 @@ list_page pastes = skin "Recent Pastes" noHtml $
              +++ th << "Language"
              +++ th << "Channel"
 
-edit_paste_form :: [String] -> Maybe Int -> String -> Html
+edit_paste_form :: [String] -> Maybe Int -> String -> PageM Html
 edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
   h2 << page_title
  +++
@@ -88,24 +107,22 @@ edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
-display_pastes :: UTCTime -> Paste -> [Paste] -> Html
+display_pastes :: UTCTime -> Paste -> [Paste] -> PageM Html
 display_pastes now x xs =
-  skin ("Viewing " ++ show_title x) other_links
-  $ toHtml $ map (display_paste now) (x:xs)
+  make_url (methodURL mNew (Just (paste_id x)) Nothing) >>= \ new_url ->
+  skin ("Viewing " ++ show_title x) (anchor ! [href new_url] << "add revision")
+  . toHtml =<< mapM (display_paste now) (x:xs)
   where
-  other_links = anchor ! [href $ exportURL
-                           $ methodURL mNew (Just (paste_id x)) Nothing ]
-                << "add revision"
 
-display_paste :: UTCTime -> Paste -> Html
+display_paste :: UTCTime -> Paste -> PageM Html
 display_paste now paste =
+  make_url (methodURL mNew (Just (paste_id paste)) (Just ())) >>= \ new_url ->
+  make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
+  return $
       h2 << paste_title paste
   +++ thediv ! [theclass "entrylinks"]
-      << (anchor ! [ href $ exportURL
-                          $ methodURL mNew (Just (paste_id paste)) (Just ())]
-          << "add modification"
-      +++ anchor ! [href $ exportURL $ methodURL mRaw (paste_id paste)]
-          << "raw"
+      << (anchor ! [ href new_url] << "add modification"
+      +++ anchor ! [href raw_url] << "raw"
          )
   +++ style ! [thetype "text/css"]
       << defaultHighlightingCss
@@ -131,8 +148,12 @@ display_paste now paste =
                                     (paste_language paste) ls
 
 
-skin :: String -> Html -> Html -> Html
+skin :: String -> Html -> Html -> PageM Html
 skin title_text other_links body_html =
+  make_url (methodURL mList Nothing) >>= \ list_url ->
+  make_url (methodURL mNew Nothing Nothing) >>= \ new_url ->
+  return $
+
   header
   << (thetitle << (title_text ++ " - hpaste")
   +++ thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
@@ -144,8 +165,8 @@ skin title_text other_links body_html =
   body
   << (h1 << thespan << "hpastetwo"
   +++ thediv ! [theclass "toplinks"]
-      << (anchor ! [href $ exportURL $ methodURL mList Nothing] << "recent"
-      +++ anchor ! [href $ exportURL $ methodURL mNew Nothing Nothing] << "new"
+      << (anchor ! [href list_url] << "recent"
+      +++ anchor ! [href new_url] << "new"
       +++ other_links
          )
   +++ body_html

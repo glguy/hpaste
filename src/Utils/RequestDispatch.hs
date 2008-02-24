@@ -75,7 +75,7 @@ methodURL (Method args _ path _) = build args $ baseURL path
 
 baseURL :: String -> URL
 baseURL path =
-  URL { url_type     = PathRelative
+  URL { url_type     = HostRelative
       , url_path     = path
       , url_params   = []
       }
