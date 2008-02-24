@@ -56,18 +56,18 @@ mainCGI =
  do uri    <- requestURI
     method <- requestMethod
     params <- getInputs
-    conf   <- liftIO (getConfig)
+    conf   <- liftIO getConfig
     let p = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
     case runAPI c handlers of
-      Nothing         -> outputHTML $ return $ pre $ toHtml usage
-      Just (Left err) -> outputHTML $ return err
+      Nothing         -> outputHTML conf $ return $ pre $ toHtml usage
+      Just (Left err) -> outputHTML conf $ return err
       Just (Right r)  -> r conf
   `catchCGI` outputException
 
 getConfig :: IO Config
 getConfig =
-  do txt <- readFile "hapste.conf"
+  do txt <- readFile "hpaste.conf"
      case maybeRead txt of
        Just conf -> return conf
        Nothing -> return default_config
@@ -81,7 +81,7 @@ handleNew mb_pasteId edit conf =
  do chans <- liftIO getChannels
     mb_text <- get_text
     log_on_error mb_text $ \ text ->
-      outputHTML $ edit_paste_form chans mb_pasteId text
+      outputHTML conf $ edit_paste_form chans mb_pasteId text
   where
   get_text =
     if isNothing edit then return $ Right ""
@@ -137,7 +137,7 @@ handleView pasteId conf =
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- liftIO $ getChildren (pasteId)
                     now <- liftIO $ getCurrentTime
-                    outputHTML $ display_pastes now x kids
+                    outputHTML conf $ display_pastes now x kids
 
 handleRaw :: Int -> Action
 handleRaw pasteId conf =
@@ -151,21 +151,21 @@ handleRaw pasteId conf =
 handleList :: Maybe String -> Action
 handleList pat conf = do
     pastes <- liftIO $ getPastes pat 50 0
-    outputHTML $ list_page pastes
+    outputHTML conf $ list_page pastes
 
 split d [] = []
 split d xs = case break (==d) xs of
                (a, []) -> [a]
                (a, _:b) -> a : split d b
 
-buildHTML :: PageM a -> CGI a
-buildHTML m = do sn <- scriptName
-                 return $ runPageM sn m
+buildHTML :: Config -> PageM a -> CGI a
+buildHTML conf m = do sn <- scriptName
+                      return $ runPageM conf sn m
 
-outputHTML :: HTML a => PageM a -> CGI CGIResult
-outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
-                  xs <- buildHTML s
-                  output $ filter (/='\r') $ renderHtml xs
+outputHTML :: HTML a => Config -> PageM a -> CGI CGIResult
+outputHTML conf s = do setHeader "Content-type" "text/html; charset=utf-8"
+                       xs <- buildHTML conf s
+                       output $ filter (/='\r') $ renderHtml xs
 
 redirectTo :: URL -> CGI CGIResult
 redirectTo url = do sn <- scriptName

@@ -7,28 +7,26 @@ import Data.Time
 import MonadLib
 
 import API
-import Utils.URL
+import Config
 import Storage
 import Types
+import Utils.URL
 
 
-data PageEnv = PageEnv { page_env_baseurl :: String
-                       }
+data PageEnv = PageEnv { page_env_conf :: Config
+                       , page_env_baseurl :: String }
 
 newtype PageM a = PageM (ReaderT PageEnv Id a)
  deriving (Monad, Functor)
 
 
-runPageM baseurl (PageM m) = runId $ runReaderT (PageEnv baseurl) m
+runPageM conf baseurl (PageM m) = runId $ runReaderT (PageEnv conf baseurl) m
 asks f = f `fmap` PageM ask
 
 make_url :: URL -> PageM String
 make_url url = do b <- asks page_env_baseurl
                   return $ b ++ exportURL url
 
-
-stylesheet :: String
-stylesheet = "/hpaste.css"
 
 list_page :: [Paste] -> PageM Html
 list_page pastes =
@@ -150,6 +148,7 @@ display_paste now paste =
 
 skin :: String -> Html -> Html -> PageM Html
 skin title_text other_links body_html =
+  asks (style_path . page_env_conf) >>= \ stylesheet ->
   make_url (methodURL mList Nothing) >>= \ list_url ->
   make_url (methodURL mNew Nothing Nothing) >>= \ new_url ->
   return $
