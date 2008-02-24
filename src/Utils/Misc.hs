@@ -2,10 +2,11 @@ module Utils.Misc where
 
 import qualified Data.ByteString as BS
 import qualified Codec.Binary.UTF8.String as UTF8
+import Data.Char (isSpace)
 
 maybeRead :: Read a => String -> Maybe a
 maybeRead xs = case reads xs of
-                [(y,"")] -> Just y
+                [(y,xs)] | all isSpace xs -> Just y
                 _        -> Nothing
 
 
