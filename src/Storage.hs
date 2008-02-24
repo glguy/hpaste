@@ -1,6 +1,7 @@
 {-# LANGUAGE Rank2Types #-}
 module Storage where
 
+import Database.Enumerator(catchDB)
 import Database.Sqlite.Enumerator
 import Types
 import Data.Time
@@ -19,7 +20,7 @@ with_db query bindings (Handler f) =
   withSession dbConnect (
   withPreparedStatement (prepareQuery query) (\ pstmt ->
   withBoundStatement pstmt bindings f
-  ))
+  )) `catchDB` \e -> ioError (userError (show e))
 
 getPastes :: Maybe String -> Int -> Int -> IO [Paste]
 getPastes mpat limit offset =
