@@ -22,6 +22,7 @@ import Control.Concurrent
 import Control.Monad (unless)
 import Control.Exception
 import Data.Char
+import Data.Time.Clock
 import Data.Maybe (fromMaybe, isNothing)
 import Network.FastCGI
 import Network.URI
@@ -95,7 +96,7 @@ handleSave title author content language channel mb_parent save preview = do
                     , paste_channel = channel
                     , paste_parentid = mb_parent1
                     -- overwritten:
-                    , paste_timestamp = ""
+                    , paste_timestamp = Nothing
                     , paste_hostname = hostname
                     , paste_expireon = Nothing
                     , paste_ipaddress = ip
@@ -116,7 +117,8 @@ handleView pasteId =
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- liftIO $ getChildren (pasteId)
-                    outputHTML $ display_pastes x kids
+                    now <- liftIO $ getCurrentTime
+                    outputHTML $ display_pastes now x kids
 
 handleRaw :: Int -> CGI CGIResult
 handleRaw pasteId =
