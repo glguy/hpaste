@@ -110,4 +110,11 @@ addChannel chan = with_db
   , Handler (\bstmt -> (execDML bstmt >> return ()) `catchDB` \ _ -> return ())
   )
 
+delChannel :: String -> IO ()
+delChannel chan = with_db
+  ( "DELETE FROM channel WHERE channelname = ?"
+  , [bindP chan]
+  , Handler (\bstmt -> (execDML bstmt >> return ()) `catchDB` \ _ -> return ())
+  )
+
 
