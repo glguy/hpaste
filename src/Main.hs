@@ -148,10 +148,11 @@ handleRaw pasteId conf =
                     output $ paste_content x
 
 
-handleList :: Maybe String -> Action
-handleList pat conf = do
-    pastes <- liftIO $ getPastes pat 50 0
-    outputHTML conf $ list_page pastes
+handleList :: Maybe String -> Maybe Int -> Action
+handleList pat offset conf = do
+    let offset1 = max 0 $ fromMaybe 0 offset
+    pastes <- liftIO $ getPastes pat 21 (offset1 * 20)
+    outputHTML conf $ list_page pastes offset1
 
 split d [] = []
 split d xs = case break (==d) xs of

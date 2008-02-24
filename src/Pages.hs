@@ -28,9 +28,11 @@ make_url url = do b <- asks page_env_baseurl
                   return $ b ++ exportURL url
 
 
-list_page :: [Paste] -> PageM Html
-list_page pastes =
+list_page :: [Paste] -> Int -> PageM Html
+list_page pastes offset =
   mapM (make_url . methodURL mView . paste_id) pastes >>= \ urls ->
+  make_url (methodURL mList Nothing (Just (offset + 1))) >>= \ earlier_url ->
+  make_url (methodURL mList Nothing (Just (offset - 1))) >>= \ later_url ->
   skin "Recent Pastes" noHtml $
   h2 << "Recent Pastes"
  +++
@@ -44,9 +46,23 @@ list_page pastes =
         +++ td << show_language p
         +++ td << paste_channel p
            )
-       | (p,view_url) <- zip pastes urls]
+       | (p,view_url) <- zip pastes1 urls]
      )
+ +++
+  thediv ! [theclass "footerlinks"]
+  << (thespan ! [identifier "later"] << later_link later_url
+  +++ " "
+  +++ thespan ! [identifier "earlier"] << earlier_link earlier_url)
   where
+  (pastes1, more) = splitAt 20 pastes
+
+  earlier_link url
+    | null more = toHtml "earlier"
+    | otherwise = anchor ! [href url] << "earlier"
+
+  later_link url
+    | offset > 0 = anchor ! [href url] << "later"
+    | otherwise  = toHtml "later"
 
   table_header = th << spaceHtml
              +++ th << "Author"
@@ -149,7 +165,7 @@ display_paste now paste =
 skin :: String -> Html -> Html -> PageM Html
 skin title_text other_links body_html =
   asks (style_path . page_env_conf) >>= \ stylesheet ->
-  make_url (methodURL mList Nothing) >>= \ list_url ->
+  make_url (methodURL mList Nothing Nothing) >>= \ list_url ->
   make_url (methodURL mNew Nothing Nothing) >>= \ new_url ->
   return $
 
