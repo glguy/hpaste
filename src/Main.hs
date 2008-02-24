@@ -58,6 +58,7 @@ mainCGI =
       Nothing         -> outputHTML $ pre $ toHtml usage
       Just (Left err) -> outputHTML err
       Just (Right r)  -> r
+  `catchCGI` outputException
 
 handleNew :: Maybe Int -> Maybe () -> CGI CGIResult
 handleNew mb_pasteId edit =
