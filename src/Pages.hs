@@ -31,46 +31,50 @@ make_url url = do b <- asks page_env_baseurl
 list_page :: UTCTime -> [Paste] -> Int -> PageM Html
 list_page now pastes offset =
   mapM (make_url . methodURL mView . paste_id) pastes >>= \ urls ->
+  asks (pastes_per_page . page_env_conf) >>= \ n ->
   make_url (methodURL mList Nothing (Just (offset + 1))) >>= \ earlier_url ->
   make_url (methodURL mList Nothing (Just (offset - 1))) >>= \ later_url ->
-  skin "Recent Pastes" noHtml $
-  h2 << "Recent Pastes"
- +++
-  table ! [theclass "pastelist"]
-  << (table_header
-  +++ concatHtml
-       [tr
-        << (td << anchor ! [href view_url] << "view"
-        +++ td << show_author p
-        +++ td << show_title p
-        +++ td << show_ago now p
-        +++ td << show_language p
-        +++ td << paste_channel p
-           )
-       | (p,view_url) <- zip pastes1 urls]
-     )
- +++
-  thediv ! [theclass "footerlinks"]
-  << (thespan ! [identifier "later"] << later_link later_url
-  +++ " "
-  +++ thespan ! [identifier "earlier"] << earlier_link earlier_url)
+  skin "Recent Pastes" noHtml $ html_result urls n earlier_url later_url
+
   where
-  (pastes1, more) = splitAt 20 pastes
+  html_result urls n earlier_url later_url =
+     h2 << "Recent Pastes"
+    +++
+     table ! [theclass "pastelist"]
+     << (table_header
+     +++ concatHtml
+          [tr
+           << (td << anchor ! [href view_url] << "view"
+           +++ td << show_author p
+           +++ td << show_title p
+           +++ td << show_ago now p
+           +++ td << show_language p
+           +++ td << paste_channel p
+              )
+          | (p,view_url) <- zip pastes1 urls]
+        )
+    +++
+     thediv ! [theclass "footerlinks"]
+     << (thespan ! [identifier "later"] << later_link
+     +++ " "
+     +++ thespan ! [identifier "earlier"] << earlier_link)
+    where
+    (pastes1, more) = splitAt n pastes
 
-  earlier_link url
-    | null more = toHtml "earlier"
-    | otherwise = anchor ! [href url] << "earlier"
+    earlier_link
+      | null more = toHtml "earlier"
+      | otherwise = anchor ! [href earlier_url] << "earlier"
 
-  later_link url
-    | offset > 0 = anchor ! [href url] << "later"
-    | otherwise  = toHtml "later"
+    later_link
+      | offset > 0 = anchor ! [href later_url] << "later"
+      | otherwise  = toHtml "later"
 
-  table_header = th << spaceHtml
-             +++ th << "Author"
-             +++ th << "Title"
-             +++ th << "Age"
-             +++ th << "Language"
-             +++ th << "Channel"
+    table_header = th << spaceHtml
+               +++ th << "Author"
+               +++ th << "Title"
+               +++ th << "Age"
+               +++ th << "Language"
+               +++ th << "Channel"
 
 edit_paste_form :: [String] -> Maybe Int -> String -> PageM Html
 edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $

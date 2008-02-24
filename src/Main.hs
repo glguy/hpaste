@@ -151,7 +151,8 @@ handleRaw pasteId conf =
 handleList :: Maybe String -> Maybe Int -> Action
 handleList pat offset conf = do
     let offset1 = max 0 $ fromMaybe 0 offset
-    pastes <- liftIO $ getPastes pat 21 (offset1 * 20)
+        n = pastes_per_page conf
+    pastes <- liftIO $ getPastes pat (n+1) (offset1 * n)
     now <- liftIO $ getCurrentTime
     outputHTML conf $ list_page now pastes offset1
 
