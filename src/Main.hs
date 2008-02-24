@@ -19,11 +19,10 @@ import Types
 import Config
 import Utils.URL
 import Utils.Misc(maybeRead)
+import Utils.Compat()
 
 import Control.Concurrent
-import Control.Monad (unless)
 import Control.Exception
-import Data.Char
 import Data.Time.Clock
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
@@ -33,8 +32,16 @@ import Prelude hiding (catch)
 import System.IO
 import Text.XHtml.Strict hiding (URL)
 import Text.Highlighting.Kate (languages)
+import MonadLib
 
-type Action = Config -> CGI CGIResult
+type PasteM = ReaderT Config (CGIT IO)
+type Action = PasteM CGIResult
+
+get_conf :: PasteM Config
+get_conf = ask
+
+runPasteM :: Config -> PasteM a -> CGI a
+runPasteM = runReaderT
 
 handlers :: [Context -> Maybe (Either String Action)]
 docs     :: [String]
@@ -60,10 +67,10 @@ mainCGI =
     conf   <- liftIO getConfig
     let p = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
-    case runAPI c handlers of
-      Nothing         -> outputHTML conf $ return $ pre $ toHtml usage
-      Just (Left err) -> outputHTML conf $ return err
-      Just (Right r)  -> r conf
+    runPasteM conf $ case runAPI c handlers of
+      Nothing         -> outputHTML $ return $ pre $ toHtml usage
+      Just (Left err) -> outputHTML $ return err
+      Just (Right r)  -> r
   `catchCGI` outputException
 
 getConfig :: IO Config
@@ -78,11 +85,11 @@ getConfig =
 
 
 handleNew :: Maybe Int -> Maybe () -> Action
-handleNew mb_pasteId edit conf =
+handleNew mb_pasteId edit =
  do chans <- liftIO getChannels
     mb_text <- get_text
     log_on_error mb_text $ \ text ->
-      outputHTML conf $ edit_paste_form chans mb_pasteId text
+      outputHTML $ edit_paste_form chans mb_pasteId text
   where
   get_text =
     if isNothing edit then return $ Right ""
@@ -95,7 +102,7 @@ handleNew mb_pasteId edit conf =
 
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> Action
-handleSave title author content language channel mb_parent save preview conf =
+handleSave title author content language channel mb_parent save preview =
   let validation_msgs = catMaybes [length_check "title" 40 title
                                   ,length_check "author" 40 author
                                   ,length_check "content" 5000 content
@@ -106,7 +113,7 @@ handleSave title author content language channel mb_parent save preview conf =
                                                               ("":languages)
                                   ]
   in if not (null validation_msgs)
-        then outputHTML conf $ error_page validation_msgs
+        then outputHTML $ error_page validation_msgs
         else do
   chans <- liftIO $ getChannels
   let channel1 = if channel `elem` chans then channel else ""
@@ -137,7 +144,7 @@ handleSave title author content language channel mb_parent save preview conf =
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
     unless (null channel1) $ liftIO $ announce pasteId
-    handleView (fromMaybe pasteId mb_parent1) conf
+    handleView (fromMaybe pasteId mb_parent1)
 
 announce :: Int -> IO ()
 announce pasteId = (bracket (connectTo "" $ UnixSocket "pastes/announce")
@@ -145,16 +152,16 @@ announce pasteId = (bracket (connectTo "" $ UnixSocket "pastes/announce")
                    ) `catch` \ _ -> return ()
 
 handleView :: Int -> Action
-handleView pasteId conf =
+handleView pasteId =
  do res <- liftIO $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- liftIO $ getChildren (pasteId)
                     now <- liftIO $ getCurrentTime
-                    outputHTML conf $ display_pastes now x kids
+                    outputHTML $ display_pastes now x kids
 
 handleRaw :: Int -> Action
-handleRaw pasteId conf =
+handleRaw pasteId =
  do res <- liftIO $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
@@ -163,32 +170,34 @@ handleRaw pasteId conf =
 
 
 handleList :: Maybe String -> Maybe Int -> Action
-handleList pat offset conf = do
+handleList pat offset = do
+    conf <- get_conf
     let offset1 = max 0 $ fromMaybe 0 offset
         n = pastes_per_page conf
     pastes <- liftIO $ getPastes pat (n+1) (offset1 * n)
     now <- liftIO $ getCurrentTime
-    outputHTML conf $ list_page now pastes offset1
+    outputHTML $ list_page now pastes offset1
 
 split d [] = []
 split d xs = case break (==d) xs of
                (a, []) -> [a]
                (a, _:b) -> a : split d b
 
-buildHTML :: Config -> PageM a -> CGI a
-buildHTML conf m = do sn <- scriptName
+buildHTML :: PageM a -> PasteM a
+buildHTML m      = do sn <- scriptName
+                      conf <- get_conf
                       return $ runPageM conf sn m
 
-outputHTML :: HTML a => Config -> PageM a -> CGI CGIResult
-outputHTML conf s = do setHeader "Content-type" "text/html; charset=utf-8"
-                       xs <- buildHTML conf s
-                       output $ filter (/='\r') $ renderHtml xs
+outputHTML :: HTML a => PageM a -> PasteM CGIResult
+outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
+                  xs <- buildHTML s
+                  output $ filter (/='\r') $ renderHtml xs
 
 redirectTo :: URL -> CGI CGIResult
 redirectTo url = do sn <- scriptName
                     redirect $ sn ++ exportURL url
 
-log_on_error :: Either String a -> (a -> CGI CGIResult) -> CGI CGIResult
+log_on_error :: Either String a -> (a -> Action) -> Action
 log_on_error (Right x) f = f x
 log_on_error (Left  e) _ = outputInternalServerError [e]
 
