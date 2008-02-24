@@ -85,8 +85,9 @@ handleSave title author content language channel mb_parent save preview = do
                     do ppaste <- liftIO $ getPaste parent
                        case ppaste of
                          Nothing -> return Nothing
-                         Just x -> return $ Just $ fromMaybe (paste_id x)
-                                                             (paste_parentid x)
+                         Just x -> return $ Just $ case paste_parentid x of
+                                                     Just i | i > 0 -> i
+                                                     _ -> paste_id x
   ip <- remoteAddr
   hostname <- remoteHost
   let paste = Paste { paste_id = 0
@@ -96,16 +97,16 @@ handleSave title author content language channel mb_parent save preview = do
                     , paste_language = language
                     , paste_channel = channel
                     , paste_parentid = mb_parent1
+                    , paste_hostname = hostname
+                    , paste_ipaddress = ip
                     -- overwritten:
                     , paste_timestamp = Nothing
-                    , paste_hostname = hostname
                     , paste_expireon = Nothing
-                    , paste_ipaddress = ip
                     }
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
     unless (null channel) $ liftIO $ announce pasteId
-    redirectTo $ methodURL mView $ fromMaybe pasteId (mb_parent1)
+    handleView $ fromMaybe pasteId mb_parent1
 
 announce :: Int -> IO ()
 announce pasteId = (bracket (connectTo "" $ UnixSocket "pastes/announce")
@@ -150,7 +151,8 @@ outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
                   output $ filter (/='\r') $ renderHtml xs
 
 redirectTo :: URL -> CGI CGIResult
-redirectTo url = redirect $ exportURL url
+redirectTo url = do sn <- scriptName
+                    redirect $ sn ++ exportURL url
 
 log_on_error :: Either String a -> (a -> CGI CGIResult) -> CGI CGIResult
 log_on_error (Right x) f = f x
