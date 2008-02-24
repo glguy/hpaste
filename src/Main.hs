@@ -115,7 +115,7 @@ handleSave title author content language channel mb_parent save preview =
   in if not (null validation_msgs)
         then outputHTML $ error_page validation_msgs
         else do
-  mb_parent1 <- topmost_parent mb_parent
+  mb_parent1 <- liftIO $ topmost_parent mb_parent
   chans <- liftIO $ getChannels
   let channel1 = if channel `elem` chans then channel else ""
   ip <- remoteAddr
@@ -163,13 +163,13 @@ handleRaw pasteId =
 
 handleList :: Maybe String -> Maybe Int -> Action
 handleList pat offset = do
-    conf <- get_conf
     let offset1 = max 0 $ fromMaybe 0 offset
-        n = pastes_per_page conf
+    n <- pastes_per_page `fmap` get_conf
     pastes <- liftIO $ getPastes pat (n+1) (offset1 * n)
     now <- liftIO $ getCurrentTime
     outputHTML $ list_page now pastes offset1
 
+split :: Eq a => a -> [a] -> [[a]]
 split d [] = []
 split d xs = case break (==d) xs of
                (a, []) -> [a]
@@ -193,23 +193,27 @@ log_on_error :: Either String a -> (a -> Action) -> Action
 log_on_error (Right x) f = f x
 log_on_error (Left  e) _ = outputInternalServerError [e]
 
+blank_check :: String -> [a] -> Maybe Html
 blank_check field_name xs
   | null xs   = Just $ emphasize << field_name +++ " is a required field."
   | otherwise = Nothing
 
+length_check :: String -> Int -> [a] -> Maybe Html
 length_check field_name n xs
   | length xs > n = Just $ emphasize << field_name
                       +++ " must not be longer than "
                       +++ strong << show n +++ " chacters."
   | otherwise     = Nothing
 
+member_check :: Eq a => String -> a -> [a] -> Maybe Html
 member_check field_name x xs
   | x `elem` xs = Nothing
   | otherwise   = Just $ emphasize << field_name +++ " is not valid."
 
+topmost_parent :: Maybe Int -> IO (Maybe Int)
 topmost_parent mb_parent =
   return mb_parent `bind` \ parent ->
-  liftIO (getPaste parent) `bind` \ ppaste ->
+  getPaste parent `bind` \ ppaste ->
   return $ Just $ case paste_parentid ppaste of
                     Just i | i > 0 -> i
                     _ -> paste_id ppaste
