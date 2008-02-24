@@ -50,35 +50,26 @@ getPaste pasteId = with_db query [bindP pasteId] $ Handler (\bstmt ->
  where query = sql $ "SELECT * FROM paste WHERE pasteid = ?"
 
 
-iterFirst :: (Monad m) =>
-             Int
-             -> String
-             -> String
-             -> String
-             -> String
-             -> Maybe String
-             -> String
-             -> Maybe Int
-             -> String
-             -> String
-             -> Maybe Int
-             -> IterAct m (Maybe Paste)
+-- | Should correspond to the fields in the table @paste@.
+type PasteIter x
+  = Int
+ -> String
+ -> String
+ -> String
+ -> String
+ -> Maybe String
+ -> String
+ -> Maybe Int
+ -> String
+ -> String
+ -> Maybe Int
+ -> x
+
+iterFirst :: (Monad m) => PasteIter (IterAct m (Maybe Paste))
 iterFirst a b c d e f g h i j k Nothing =
          return $ Left $ Just $ Paste a (parse_time b) c d e f g h i j k
 
-iterAll      :: (Monad m) =>
-             Int
-             -> String
-             -> String
-             -> String
-             -> String
-             -> Maybe String
-             -> String
-             -> Maybe Int
-             -> String
-             -> String
-             -> Maybe Int
-             -> IterAct m [Paste]
+iterAll   :: (Monad m) => PasteIter (IterAct m [Paste])
 iterAll a b c d e f g h i j k xs =
          result' $ Paste a (parse_time b) c d e f g h i j k : xs
 
