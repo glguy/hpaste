@@ -115,17 +115,9 @@ handleSave title author content language channel mb_parent save preview =
   in if not (null validation_msgs)
         then outputHTML $ error_page validation_msgs
         else do
+  mb_parent1 <- topmost_parent mb_parent
   chans <- liftIO $ getChannels
   let channel1 = if channel `elem` chans then channel else ""
-  mb_parent1 <- case mb_parent of
-                  Nothing -> return Nothing
-                  Just parent ->
-                    do ppaste <- liftIO $ getPaste parent
-                       case ppaste of
-                         Nothing -> return Nothing
-                         Just x -> return $ Just $ case paste_parentid x of
-                                                     Just i | i > 0 -> i
-                                                     _ -> paste_id x
   ip <- remoteAddr
   hostname <- remoteHost
   let paste = Paste { paste_id = 0
@@ -214,3 +206,12 @@ length_check field_name n xs
 member_check field_name x xs
   | x `elem` xs = Nothing
   | otherwise   = Just $ emphasize << field_name +++ " is not valid."
+
+topmost_parent mb_parent =
+  return mb_parent `bind` \ parent ->
+  liftIO (getPaste parent) `bind` \ ppaste ->
+  return $ Just $ case paste_parentid ppaste of
+                    Just i | i > 0 -> i
+                    _ -> paste_id ppaste
+
+  where bind m f = maybe (return Nothing) f =<< m
