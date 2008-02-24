@@ -3,13 +3,7 @@ module Storage where
 
 import Database.Sqlite.Enumerator
 import Types
-import Data.Time
-import Data.Time.Format
-import System.Locale
-
-
-parse_time :: String -> Maybe UTCTime
-parse_time = parseTime defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q"
+import Utils.Misc(parse_time)
 
 dbConnect = connect "pastes/pastes.db"
 
