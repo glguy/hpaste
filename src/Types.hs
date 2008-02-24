@@ -10,7 +10,7 @@ data Paste = Paste
       , paste_title     :: String
       , paste_author    :: String
       , paste_hostname  :: Maybe String
-      , paste_ipaddress :: Maybe String
+      , paste_ipaddress :: String
       , paste_expireon  :: Maybe Int
       , paste_language  :: String
       , paste_channel   :: String
