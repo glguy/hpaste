@@ -67,8 +67,8 @@ edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
       +++ label ! [thefor "title"]
            << (thespan << "title " +++ textfield "title")
 
-      +++ input ! [ thetype "image", alt "save" ,theclass "submit"
-                  , src "/static/save.jpg", name "submit" ]
+      +++ input ! [ thetype "submit", alt "save" ,theclass "imagebutton"
+                  , name "submit", value "save" ]
           )
   +++ thediv ! [theclass "tabsrow2"]
       << (label ! [thefor "language"]
