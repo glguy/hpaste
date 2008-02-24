@@ -46,7 +46,8 @@ iterFirst :: (Monad m) =>
              -> String
              -> String
              -> Maybe String
-             -> Maybe String -> Maybe Int
+             -> String
+             -> Maybe Int
              -> String
              -> String
              -> Maybe Int
@@ -61,7 +62,7 @@ iterAll      :: (Monad m) =>
              -> String
              -> String
              -> Maybe String
-             -> Maybe String
+             -> String
              -> Maybe Int
              -> String
              -> String
@@ -72,7 +73,7 @@ iterAll a b c d e f g h i j k xs =
 
 writePaste :: Paste -> IO (Either String Int)
 writePaste p =
-  let query1 = sql "insert into paste (title, author, content, language, channel, parentid) values (?,?,?,?,?,?)"
+  let query1 = sql "insert into paste (title, author, content, language, channel, parentid, ipaddress, hostname) values (?,?,?,?,?,?,?,?)"
       query2 = sql "select last_insert_rowid()"
 
       iterFirst :: Monad m => Int -> IterAct m (Either String Int)
@@ -80,7 +81,8 @@ writePaste p =
 
       bindings = [bindP (paste_title p), bindP (paste_author p),
                   bindP (paste_content p), bindP (paste_language p),
-                  bindP (paste_channel p), bindP (paste_parentid p)]
+                  bindP (paste_channel p), bindP (paste_parentid p),
+                  bindP (paste_ipaddress p), bindP (paste_hostname p)]
   in (
   withSession dbConnect $
   withPreparedStatement (prepareQuery query1) $ \ pstmt ->

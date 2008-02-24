@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS paste
   , title   TEXT NOT NULL
   , author  TEXT NOT NULL
   , hostname  TEXT
-  , ipaddress TEXT
+  , ipaddress TEXT NOT NULL
   , expireon INTEGER
   , language TEXT NOT NULL
   , channel TEXT  NOT NULL

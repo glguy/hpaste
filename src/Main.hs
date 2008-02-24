@@ -85,6 +85,8 @@ handleSave title author content language channel mb_parent save preview = do
                          Nothing -> return Nothing
                          Just x -> return $ Just $ fromMaybe (paste_id x)
                                                              (paste_parentid x)
+  ip <- remoteAddr
+  hostname <- remoteHost
   let paste = Paste { paste_id = 0
                     , paste_title = title
                     , paste_author = author
@@ -94,9 +96,9 @@ handleSave title author content language channel mb_parent save preview = do
                     , paste_parentid = mb_parent1
                     -- overwritten:
                     , paste_timestamp = ""
-                    , paste_hostname = Nothing
+                    , paste_hostname = hostname
                     , paste_expireon = Nothing
-                    , paste_ipaddress = Nothing
+                    , paste_ipaddress = ip
                     }
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
