@@ -83,8 +83,9 @@ list_page now pastes offset =
                +++ th << "Language"
                +++ th << "Channel"
 
-edit_paste_form :: [String] -> Maybe Int -> String -> PageM Html
-edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
+edit_paste_form :: [String] -> Maybe Int -> String -> String -> PageM Html
+edit_paste_form chans mb_pasteId language starting_text =
+  skin page_title noHtml $
   h2 << page_title
  +++
   form ! [action "save", method "post"]
@@ -125,8 +126,8 @@ edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
                        +++ map language_option languages
                           )
 
-  language_option "Haskell" = option ! [selected] << "Haskell"
-  language_option l         = option << l
+  language_option l | l == language = option ! [selected] << l
+                    | otherwise     = option << l
 
   channel_drop_down = select ! [name "channel", identifier "channel"]
                       << (option << emphasize << "none"

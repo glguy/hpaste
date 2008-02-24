@@ -87,18 +87,21 @@ getConfig =
 handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
  do chans <- exec_db getChannels
-    mb_text <- get_text
-    log_on_error mb_text $ \ text ->
-      outputHTML $ edit_paste_form chans mb_pasteId text
+    mb_text <- get_previous
+    log_on_error mb_text $ \ (text, language) ->
+      outputHTML $ edit_paste_form chans mb_pasteId language text
   where
-  get_text =
-    if isNothing edit then return $ Right ""
-    else case mb_pasteId of
-           Nothing -> return $ Right ""
-           Just x  -> do res <- exec_db $ getPaste x
-                         return $ case res of
-                                    Just r -> Right $ paste_content r
-                                    Nothing -> Left "no such paste"
+  get_previous =
+    case mb_pasteId of
+      Nothing -> do lang <- default_language `fmap` get_conf
+                    return $ Right ("",lang)
+      Just x ->
+        do res <- exec_db $ getPaste x
+           return $
+             case res of
+               Nothing -> Left "no such paste"
+               Just r | isNothing edit -> Right ("", paste_language r)
+                      | otherwise -> Right $ (paste_content r,paste_language r)
 
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> Action
