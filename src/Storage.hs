@@ -1,3 +1,4 @@
+{-# LANGUAGE Rank2Types #-}
 module Storage where
 
 import Database.Sqlite.Enumerator
@@ -5,12 +6,19 @@ import Types
 
 dbConnect = connect "pastes/pastes.db"
 
+data Handler bstmt s a = Handler (forall mark. bstmt -> DBM mark s a)
+
+with_db query bindings (Handler f) =
+  withSession dbConnect (
+  withPreparedStatement (prepareQuery query) (\ pstmt ->
+  withBoundStatement pstmt bindings f
+  ))
+
 getPastes :: Maybe String -> Int -> Int -> IO [Paste]
 getPastes mpat limit offset =
-  withSession dbConnect $
-  withPreparedStatement (prepareQuery query) $ \ pstmt ->
-  withBoundStatement pstmt bindings $ \ bstmt ->
-  reverse `fmap` doQuery bstmt iterAll []
+  with_db query bindings $ Handler (\bstmt ->
+    reverse `fmap` doQuery bstmt iterAll []
+  )
   where
   query = sql $ "SELECT * FROM paste" ++ cond ++ " ORDER BY createstamp" ++
                 " DESC LIMIT ? OFFSET ?"
@@ -20,21 +28,17 @@ getPastes mpat limit offset =
   bindings = param ++ [bindP limit, bindP offset]
 
 getChildren :: Int -> IO [Paste]
-getChildren parentid =
-  withSession dbConnect $
-  withPreparedStatement (prepareQuery query) $ \ pstmt ->
-  withBoundStatement pstmt [bindP parentid] $ \ bstmt ->
-  reverse `fmap` doQuery bstmt iterAll []
+getChildren parentid = with_db query [bindP parentid] $ Handler (\bstmt ->
+    reverse `fmap` doQuery bstmt iterAll []
+  )
   where
   query = sql $ "SELECT * from paste WHERE parentid = ? "
              ++ "ORDER BY createstamp ASC"
 
 getPaste :: Int -> IO (Maybe Paste)
-getPaste pasteId =
-    withSession dbConnect                      $
-    withPreparedStatement (prepareQuery query) $ \ pstmt ->
-    withBoundStatement pstmt [bindP pasteId]   $ \ bstmt ->
+getPaste pasteId = with_db query [bindP pasteId] $ Handler (\bstmt ->
     doQuery bstmt iterFirst (Nothing :: Maybe Paste)
+  )
 
  where query = sql $ "SELECT * FROM paste WHERE pasteid = ?"
 
@@ -83,28 +87,26 @@ writePaste p =
                   bindP (paste_content p), bindP (paste_language p),
                   bindP (paste_channel p), bindP (paste_parentid p),
                   bindP (paste_ipaddress p), bindP (paste_hostname p)]
-  in (
-  withSession dbConnect $
-  withPreparedStatement (prepareQuery query1) $ \ pstmt ->
-  withBoundStatement pstmt bindings           $ \ bstmt ->
+  in with_db query1 bindings $ Handler (\bstmt ->
    do execDML bstmt
       (Right . fromIntegral) `fmap` inquire LastInsertRowid
-  ) `catchDB` \ e -> return (Left (show e))
+    `catchDB` \ e -> return (Left (show e))
+   )
 
 getChannels :: IO [String]
-getChannels = withSession dbConnect $ reverse `fmap` doQuery query iter []
+getChannels = with_db query [] $ Handler (\bstmt ->
+    reverse `fmap` doQuery bstmt iter []
+  )
   where
   query = sql "SELECT channelname from channel ORDER BY channelname"
   iter :: Monad m => String -> IterAct m [String]
   iter x xs = result' (x:xs)
 
 addChannel :: String -> IO ()
-addChannel chan = (
-  withSession dbConnect $
-  withPreparedStatement (prepareQuery query)  $ \ pstmt ->
-  withBoundStatement pstmt [bindP chan]       $ \ bstmt ->
-  execDML bstmt >>
-  return ()
-  ) `catchDB` \ _ -> return ()
+addChannel chan = with_db query [bindP chan] $ Handler (\bstmt ->
+    do execDML bstmt
+       return ()
+     `catchDB` \ _ -> return ()
+  )
   where
   query = sql "INSERT INTO channel (channelname) VALUES (?)"
