@@ -54,7 +54,7 @@ mainCGI =
     let p = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
     case runAPI c handlers of
-      Nothing         -> outputHTML usage
+      Nothing         -> outputHTML $ pre $ toHtml usage
       Just (Left err) -> outputHTML err
       Just (Right r)  -> r
 
@@ -125,9 +125,9 @@ handleRaw pasteId =
                     output $ paste_content x
 
 
-handleList :: CGI CGIResult
-handleList = do
-    pastes <- liftIO $ getPastes 50 0
+handleList :: Maybe String -> CGI CGIResult
+handleList pat = do
+    pastes <- liftIO $ getPastes pat 50 0
     outputHTML $ list_page pastes
 
 split d [] = []

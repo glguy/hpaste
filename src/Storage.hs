@@ -5,15 +5,19 @@ import Types
 
 dbConnect = connect "pastes/pastes.db"
 
-getPastes :: Int -> Int -> IO [Paste]
-getPastes limit offset =
+getPastes :: Maybe String -> Int -> Int -> IO [Paste]
+getPastes mpat limit offset =
   withSession dbConnect $
   withPreparedStatement (prepareQuery query) $ \ pstmt ->
   withBoundStatement pstmt bindings $ \ bstmt ->
   reverse `fmap` doQuery bstmt iterAll []
   where
-  query = sql "SELECT * from paste order by createstamp DESC LIMIT ? OFFSET ?"
-  bindings = [bindP limit, bindP offset]
+  query = sql $ "SELECT * FROM paste" ++ cond ++ " ORDER BY createstamp" ++
+                " DESC LIMIT ? OFFSET ?"
+  (param,cond) = case mpat of
+                   Just pat -> ([bindP pat]," WHERE content LIKE ?")
+                   Nothing -> ([], "")
+  bindings = param ++ [bindP limit, bindP offset]
 
 getChildren :: Int -> IO [Paste]
 getChildren parentid =
@@ -34,6 +38,7 @@ getPaste pasteId =
 
  where query = sql $ "SELECT * FROM paste WHERE pasteid = ?"
 
+
 iterFirst :: (Monad m) =>
              Int
              -> String
@@ -41,8 +46,7 @@ iterFirst :: (Monad m) =>
              -> String
              -> String
              -> Maybe String
-             -> Maybe String
-             -> Maybe Int
+             -> Maybe String -> Maybe Int
              -> String
              -> String
              -> Maybe Int

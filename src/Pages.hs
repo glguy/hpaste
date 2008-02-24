@@ -142,7 +142,7 @@ skin title_text other_links body_html =
   body
   << (h1 << thespan << "hpastetwo"
   +++ thediv ! [theclass "toplinks"]
-      << (anchor ! [href $ exportURL $ methodURL mList] << "recent"
+      << (anchor ! [href $ exportURL $ methodURL mList Nothing] << "recent"
       +++ anchor ! [href $ exportURL $ methodURL mNew Nothing Nothing] << "new"
       +++ other_links
          )

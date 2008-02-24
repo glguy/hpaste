@@ -27,4 +27,5 @@ mView = Method (Arg "id"      :: Arg Req Int)
 mRaw  = Method (Arg "id"      :: Arg Req Int)
         "GET" "raw" "Returns paste in text/plain format"
 
-mList = Method () "GET" "" "List recent pastes"
+mList = Method (Arg "search"  :: Arg Opt String)
+        "GET" "" "List recent pastes"
