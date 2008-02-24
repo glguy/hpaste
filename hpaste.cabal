@@ -24,7 +24,19 @@ executable hpastebot
 executable hpaste.fcgi
     main-is:         Main.hs
     ghc-options:     -threaded
-    extensions:      PatternSignatures, Rank2Types
+    extensions:
+                     DeriveDataTypeable,
+                     EmptyDataDecls,
+                     FlexibleInstances,
+                     FunctionalDependencies,
+                     GeneralizedNewtypeDeriving
+                     MultiParamTypeClasses,
+                     PatternGuards,
+                     Rank2Types,
+                     TypeOperators,
+                     TypeSynonymInstances,
+                     UndecidableInstances
+
     hs-source-dirs:  src
     build-depends:   fastcgi           >= 3001.0.1,
                      xhtml             >= 3000.0.2.1,
