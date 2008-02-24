@@ -56,7 +56,7 @@ getPastes mpat limit offset = with_db
   where
   (param,cond) = case mpat of
                    Just pat -> ([bindP pat]," WHERE content LIKE ?")
-                   Nothing -> ([], "")
+                   Nothing -> ([], " WHERE parentid IS NULL")
 
 getChildren :: Int -> StoreM [Paste]
 getChildren parentid = with_db
