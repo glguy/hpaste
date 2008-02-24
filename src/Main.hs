@@ -55,8 +55,8 @@ mainCGI =
     let p = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
     case runAPI c handlers of
-      Nothing         -> outputHTML $ pre $ toHtml usage
-      Just (Left err) -> outputHTML err
+      Nothing         -> outputHTML $ return $ pre $ toHtml usage
+      Just (Left err) -> outputHTML $ return err
       Just (Right r)  -> r
   `catchCGI` outputException
 
@@ -140,9 +140,14 @@ split d xs = case break (==d) xs of
                (a, []) -> [a]
                (a, _:b) -> a : split d b
 
-outputHTML :: HTML a => a -> CGI CGIResult
+buildHTML :: PageM a -> CGI a
+buildHTML m = do sn <- scriptName
+                 return $ runPageM sn m
+
+outputHTML :: HTML a => PageM a -> CGI CGIResult
 outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
-                  output (filter (/='\r') $ renderHtml s)
+                  xs <- buildHTML s
+                  output $ filter (/='\r') $ renderHtml xs
 
 redirectTo :: URL -> CGI CGIResult
 redirectTo url = redirect $ exportURL url
