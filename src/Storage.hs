@@ -1,23 +1,52 @@
 {-# LANGUAGE Rank2Types #-}
-module Storage where
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+module Storage
+  (
+  -- * The Store monad
+    StoreM
+  , runStoreM
+
+  -- * Paste manipulation
+  , getPaste
+  , getPastes
+  , getChildren
+  , writePaste
+
+  -- * Channel manipulation
+  , getChannels
+  , addChannel
+  , delChannel
+  , clearChannels
+  ) where
 
 import Database.Sqlite.Enumerator
 import Types
 import Utils.Misc(parse_time)
 
-dbConnect = connect "pastes/pastes.db"
+import MonadLib
+
+newtype StoreM a = SM (ReaderT FilePath IO a) deriving (Functor,Monad)
+
+get_db :: StoreM FilePath
+get_db = SM ask
+
+runStoreM :: FilePath -> StoreM a -> IO a
+runStoreM db (SM m) = runReaderT db m
 
 data Handler bstmt s a = Handler (forall mark. bstmt -> DBM mark s a)
 
 with_db (query,bindings,Handler f) =
-  withSession dbConnect (
-  withPreparedStatement (prepareQuery (sql query)) (\ pstmt ->
-  withBoundStatement pstmt bindings f
-  )) `catchDB` \e -> ioError (userError (show e))
+  get_db >>= \db -> SM $ lift (
+  withSession (connect db) (
+    withPreparedStatement (prepareQuery (sql query)) (\ pstmt ->
+      withBoundStatement pstmt bindings f
+    )
+  ) `catchDB` \e -> ioError (userError (show e))
+  )
 
 
 
-getPastes :: Maybe String -> Int -> Int -> IO [Paste]
+getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset = with_db
   ("SELECT * FROM paste" ++ cond
                          ++ " ORDER BY createstamp DESC LIMIT ? OFFSET ?"
@@ -29,14 +58,14 @@ getPastes mpat limit offset = with_db
                    Just pat -> ([bindP pat]," WHERE content LIKE ?")
                    Nothing -> ([], "")
 
-getChildren :: Int -> IO [Paste]
+getChildren :: Int -> StoreM [Paste]
 getChildren parentid = with_db
   ( "SELECT * from paste WHERE parentid = ? ORDER BY createstamp ASC"
   , [bindP parentid]
   , Handler (\bstmt -> reverse `fmap` doQuery bstmt iterAll [])
   )
 
-getPaste :: Int -> IO (Maybe Paste)
+getPaste :: Int -> StoreM (Maybe Paste)
 getPaste pasteId = with_db
   ( "SELECT * FROM paste WHERE pasteid = ?"
   , [bindP pasteId]
@@ -68,7 +97,7 @@ iterAll   :: (Monad m) => PasteIter (IterAct m [Paste])
 iterAll a b c d e f g h i j k xs =
          result' $ Paste a (parse_time b) c d e f g h i j k : xs
 
-writePaste :: Paste -> IO (Either String Int)
+writePaste :: Paste -> StoreM (Either String Int)
 writePaste p = with_db
   ( "INSERT INTO paste "
  ++ "(title, author, content, language, channel, parentid, ipaddress, hostname)"
@@ -87,7 +116,7 @@ writePaste p = with_db
   iterFirst :: Monad m => Int -> IterAct m (Either String Int)
   iterFirst i _ = return $ Left $ Right i
 
-getChannels :: IO [String]
+getChannels :: StoreM [String]
 getChannels = with_db
   ( "SELECT channelname from channel ORDER BY channelname"
   , []
@@ -97,21 +126,21 @@ getChannels = with_db
   iter :: Monad m => String -> IterAct m [String]
   iter x xs = result' (x:xs)
 
-addChannel :: String -> IO ()
+addChannel :: String -> StoreM ()
 addChannel chan = with_db
   ( "INSERT INTO channel (channelname) VALUES (?)"
   , [bindP chan]
   , Handler (\bstmt -> (execDML bstmt >> return ()) `catchDB` \ _ -> return ())
   )
 
-delChannel :: String -> IO ()
+delChannel :: String -> StoreM ()
 delChannel chan = with_db
   ( "DELETE FROM channel WHERE channelname = ?"
   , [bindP chan]
   , Handler (\bstmt -> (execDML bstmt >> return ()) `catchDB` \ _ -> return ())
   )
 
-clearChannels :: IO ()
+clearChannels :: StoreM ()
 clearChannels = with_db
   ( "DELETE FROM channel"
   , []

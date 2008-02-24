@@ -12,6 +12,7 @@ import Utils.Misc
 import Bot.Base
 import Types
 import Storage
+import Config
 
 main :: IO ()
 main =
@@ -24,7 +25,7 @@ main =
         fork writer
         fork $ announcer fifo baseurl
     takeMVar done
-    clearChannels
+    exec_db $ clearChannels
 
   where
         host = "irc.freenode.org"
@@ -55,8 +56,8 @@ listener = forever $
 handle_message m =
   case m of
     Message p "PING" xs -> return [Message p "PONG" xs]
-    Message _ "JOIN" [chan,_] -> io (addChannel chan) >> return []
-    Message _ "PART" [chan,_] -> io (delChannel chan) >> return []
+    Message _ "JOIN" [chan,_] -> io (exec_db $ addChannel chan) >> return []
+    Message _ "PART" [chan,_] -> io (exec_db $ delChannel chan) >> return []
     Message _ "PRIVMSG" [_,'j':' ':chan] -> return [joinChan chan]
     Message _ "PRIVMSG" [_,'p':' ':chan] -> return [part chan]
     Message _ "PRIVMSG" [_,"quit"] -> end_bot >> return []
@@ -84,9 +85,12 @@ announcer fifo baseurl =
      )
 
 announce baseurl a =
- do res <- io $ getPaste a
+ do res <- io $ exec_db $ getPaste a
     whenJust res $ \ paste -> do
       let c = paste_channel paste
-      chans <- io $ getChannels
+      chans <- io $ exec_db $ getChannels
       when (c `elem` chans) $
        schedule_messages [ privmsg c $ "New paste: " ++ paste_title paste ]
+
+exec_db :: StoreM a -> IO a
+exec_db m = runStoreM (db_path default_config) m
