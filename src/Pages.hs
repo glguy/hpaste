@@ -27,6 +27,14 @@ make_url :: URL -> PageM String
 make_url url = do b <- asks page_env_baseurl
                   return $ b ++ exportURL url
 
+error_page :: [Html] -> PageM Html
+error_page errors =
+  skin "Validation problem" noHtml $
+  h2 << "Paste validation failed"
+  +++
+  ordList errors
+  +++
+  p << "Please use your back button to correct your paste."
 
 list_page :: UTCTime -> [Paste] -> Int -> PageM Html
 list_page now pastes offset =
@@ -84,10 +92,13 @@ edit_paste_form chans mb_pasteId starting_text = skin page_title noHtml $
   << (thediv ! [theclass "tabsrow1"]
       << (label ! [thefor "author"]
           << (thespan << "author "
-          +++ input ! [ name "author", identifier "author", thetype "text" ]
+          +++ input ! [ name "author", identifier "author", thetype "text"
+                      , maxlength 40 ]
              )
       +++ label ! [thefor "title"]
-           << (thespan << "title " +++ textfield "title")
+           << (thespan << "title "
+           +++ input ! [name "title", identifier "title", thetype "text"
+                       ,maxlength 40])
 
       +++ input ! [ thetype "submit", alt "save" ,theclass "imagebutton"
                   , name "submit", value "save" ]

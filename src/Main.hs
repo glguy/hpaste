@@ -25,13 +25,14 @@ import Control.Monad (unless)
 import Control.Exception
 import Data.Char
 import Data.Time.Clock
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
 import Network.URI
 import Network
 import Prelude hiding (catch)
 import System.IO
 import Text.XHtml.Strict hiding (URL)
+import Text.Highlighting.Kate (languages)
 
 type Action = Config -> CGI CGIResult
 
@@ -95,7 +96,20 @@ handleNew mb_pasteId edit conf =
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> Action
 handleSave title author content language channel mb_parent save preview conf =
-  do
+  let validation_msgs = catMaybes [length_check "title" 40 title
+                                  ,length_check "author" 40 author
+                                  ,length_check "content" 5000 content
+                                  ,blank_check "title" title
+                                  ,blank_check "author" author
+                                  ,blank_check "content" content
+                                  ,member_check "language" language
+                                                              ("":languages)
+                                  ]
+  in if not (null validation_msgs)
+        then outputHTML conf $ error_page validation_msgs
+        else do
+  chans <- liftIO $ getChannels
+  let channel1 = if channel `elem` chans then channel else ""
   mb_parent1 <- case mb_parent of
                   Nothing -> return Nothing
                   Just parent ->
@@ -112,7 +126,7 @@ handleSave title author content language channel mb_parent save preview conf =
                     , paste_author = author
                     , paste_content = content
                     , paste_language = language
-                    , paste_channel = channel
+                    , paste_channel = channel1
                     , paste_parentid = mb_parent1
                     , paste_hostname = hostname
                     , paste_ipaddress = ip
@@ -122,7 +136,7 @@ handleSave title author content language channel mb_parent save preview conf =
                     }
   mbPasteId <- liftIO $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
-    unless (null channel) $ liftIO $ announce pasteId
+    unless (null channel1) $ liftIO $ announce pasteId
     handleView (fromMaybe pasteId mb_parent1) conf
 
 announce :: Int -> IO ()
@@ -177,3 +191,17 @@ redirectTo url = do sn <- scriptName
 log_on_error :: Either String a -> (a -> CGI CGIResult) -> CGI CGIResult
 log_on_error (Right x) f = f x
 log_on_error (Left  e) _ = outputInternalServerError [e]
+
+blank_check field_name xs
+  | null xs   = Just $ emphasize << field_name +++ " is a required field."
+  | otherwise = Nothing
+
+length_check field_name n xs
+  | length xs > n = Just $ emphasize << field_name
+                      +++ " must not be longer than "
+                      +++ strong << show n +++ " chacters."
+  | otherwise     = Nothing
+
+member_check field_name x xs
+  | x `elem` xs = Nothing
+  | otherwise   = Just $ emphasize << field_name +++ " is not valid."
