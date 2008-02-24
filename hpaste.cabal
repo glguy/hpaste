@@ -24,7 +24,7 @@ executable hpastebot
 executable hpaste.fcgi
     main-is:         Main.hs
     ghc-options:     -threaded
-    extensions:      PatternSignatures
+    extensions:      PatternSignatures, Rank2Types
     hs-source-dirs:  src
     build-depends:   fastcgi           >= 3001.0.1,
                      xhtml             >= 3000.0.2.1,
