@@ -117,4 +117,10 @@ delChannel chan = with_db
   , Handler (\bstmt -> (execDML bstmt >> return ()) `catchDB` \ _ -> return ())
   )
 
+clearChannels :: IO ()
+clearChannels = with_db
+  ( "DELETE FROM channel"
+  , []
+  , Handler (\bstmt -> (execDML bstmt >> return ()) `catchDB` \ _ -> return ())
+  )
 

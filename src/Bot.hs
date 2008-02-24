@@ -24,6 +24,7 @@ main =
         fork writer
         fork $ announcer fifo baseurl
     takeMVar done
+    clearChannels
 
   where
         host = "irc.freenode.org"
@@ -51,11 +52,15 @@ listener = forever $
     responses <- handle_message message
     schedule_messages responses
 
-handle_message m@(Message p "PING" xs) = return [Message p "PONG" xs]
-handle_message m@(Message _ "PRIVMSG" [_,"quit"]) = end_bot >> return []
-handle_message m@(Message _ "PRIVMSG" [_,'j':' ':chan]) =
-                                io (addChannel chan) >> return [joinChan chan]
-handle_message m = io (print m) >> return []
+handle_message m =
+  case m of
+    Message p "PING" xs -> return [Message p "PONG" xs]
+    Message _ "JOIN" [chan,_] -> io (addChannel chan) >> return []
+    Message _ "PART" [chan,_] -> io (delChannel chan) >> return []
+    Message _ "PRIVMSG" [_,'j':' ':chan] -> return [joinChan chan]
+    Message _ "PRIVMSG" [_,'p':' ':chan] -> return [part chan]
+    Message _ "PRIVMSG" [_,"quit"] -> end_bot >> return []
+    _ -> io (print m) >> return []
 
 writer :: M ()
 writer =
