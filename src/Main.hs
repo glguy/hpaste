@@ -16,7 +16,9 @@ import API
 import Pages
 import Storage
 import Types
+import Config
 import Utils.URL
+import Utils.Misc(maybeRead)
 
 import Control.Concurrent
 import Control.Monad (unless)
@@ -31,7 +33,9 @@ import Prelude hiding (catch)
 import System.IO
 import Text.XHtml.Strict hiding (URL)
 
-handlers :: [Context -> Maybe (Either String (CGIT IO CGIResult))]
+type Action = Config -> CGI CGIResult
+
+handlers :: [Context -> Maybe (Either String Action)]
 docs     :: [String]
 (handlers,docs) = unzip
   [ mNew  --> handleNew
@@ -52,16 +56,28 @@ mainCGI =
  do uri    <- requestURI
     method <- requestMethod
     params <- getInputs
+    conf   <- liftIO (getConfig)
     let p = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
     case runAPI c handlers of
       Nothing         -> outputHTML $ pre $ toHtml usage
       Just (Left err) -> outputHTML err
-      Just (Right r)  -> r
+      Just (Right r)  -> r conf
   `catchCGI` outputException
 
-handleNew :: Maybe Int -> Maybe () -> CGI CGIResult
-handleNew mb_pasteId edit =
+getConfig :: IO Config
+getConfig =
+  do txt <- readFile "hapste.conf"
+     case maybeRead txt of
+       Just conf -> return conf
+       Nothing -> return default_config
+   `catch` \_ -> return default_config
+
+
+
+
+handleNew :: Maybe Int -> Maybe () -> Action
+handleNew mb_pasteId edit conf =
  do chans <- liftIO getChannels
     mb_text <- get_text
     log_on_error mb_text $ \ text ->
@@ -77,8 +93,9 @@ handleNew mb_pasteId edit =
                                     Nothing -> Left "no such paste"
 
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
-           -> Maybe () -> Maybe () -> CGI CGIResult
-handleSave title author content language channel mb_parent save preview = do
+           -> Maybe () -> Maybe () -> Action
+handleSave title author content language channel mb_parent save preview conf =
+  do
   mb_parent1 <- case mb_parent of
                   Nothing -> return Nothing
                   Just parent ->
@@ -112,8 +129,8 @@ announce pasteId = (bracket (connectTo "" $ UnixSocket "pastes/announce")
                            hClose $ \ h -> hPutStrLn h $ show pasteId
                    ) `catch` \ _ -> return ()
 
-handleView :: Int -> CGI CGIResult
-handleView pasteId =
+handleView :: Int -> Action
+handleView pasteId conf =
  do res <- liftIO $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
@@ -121,8 +138,8 @@ handleView pasteId =
                     now <- liftIO $ getCurrentTime
                     outputHTML $ display_pastes now x kids
 
-handleRaw :: Int -> CGI CGIResult
-handleRaw pasteId =
+handleRaw :: Int -> Action
+handleRaw pasteId conf =
  do res <- liftIO $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
@@ -130,8 +147,8 @@ handleRaw pasteId =
                     output $ paste_content x
 
 
-handleList :: Maybe String -> CGI CGIResult
-handleList pat = do
+handleList :: Maybe String -> Action
+handleList pat conf = do
     pastes <- liftIO $ getPastes pat 50 0
     outputHTML $ list_page pastes
 
