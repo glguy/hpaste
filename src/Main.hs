@@ -24,6 +24,7 @@ import Utils.Compat()
 import Codec.Binary.UTF8.String as UTF8
 import Control.Concurrent
 import Control.Exception
+import Data.List
 import Data.Time.Clock
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
@@ -55,7 +56,7 @@ docs     :: [String]
   ]
 
 usage :: String
-usage = unlines docs
+usage = unlines $ intersperse "" docs
 
 main :: IO ()
 main = runFastCGIConcurrent' forkIO 5 mainCGI
