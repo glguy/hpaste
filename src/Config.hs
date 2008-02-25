@@ -1,5 +1,7 @@
 module Config where
 
+import Utils.Misc
+
 data Config = Config
   { db_path     :: FilePath
   , style_path  :: String
@@ -15,4 +17,10 @@ default_config = Config
   , default_language = "Haskell"
   }
 
-
+getConfig :: IO Config
+getConfig =
+  do txt <- readFile "hpaste.conf"
+     case maybeRead txt of
+       Just conf -> return conf
+       Nothing -> return default_config
+   `catch` \_ -> return default_config

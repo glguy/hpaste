@@ -73,14 +73,6 @@ mainCGI =
       Just (Right r)  -> r
   `catchCGI` outputException
 
-getConfig :: IO Config
-getConfig =
-  do txt <- readFile "hpaste.conf"
-     case maybeRead txt of
-       Just conf -> return conf
-       Nothing -> return default_config
-   `catch` \_ -> return default_config
-
 
 
 

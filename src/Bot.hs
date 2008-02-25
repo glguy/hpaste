@@ -19,13 +19,14 @@ main =
  bracket (connect host port) hClose $ \ handle ->
  do done <- newEmptyMVar
     out_chan <- newChan
-    runM handle done out_chan $
+    conf <- getConfig
+    runM conf handle done out_chan $
      do initialize botnick username realname
         fork listener
         fork writer
         fork $ announcer fifo baseurl
-    takeMVar done
-    exec_db $ clearChannels
+        io $ takeMVar done
+        exec_db $ clearChannels
 
   where
         host = "irc.freenode.org"
@@ -56,8 +57,8 @@ listener = forever $
 handle_message m =
   case m of
     Message p "PING" xs -> return [Message p "PONG" xs]
-    Message _ "JOIN" [chan,_] -> io (exec_db $ addChannel chan) >> return []
-    Message _ "PART" [chan,_] -> io (exec_db $ delChannel chan) >> return []
+    Message _ "JOIN" [chan,_] -> (exec_db $ addChannel chan) >> return []
+    Message _ "PART" [chan,_] -> (exec_db $ delChannel chan) >> return []
     Message _ "PRIVMSG" [_,'j':' ':chan] -> return [joinChan chan]
     Message _ "PRIVMSG" [_,'p':' ':chan] -> return [part chan]
     Message _ "PRIVMSG" [_,"quit"] -> end_bot >> return []
@@ -85,12 +86,13 @@ announcer fifo baseurl =
      )
 
 announce baseurl a =
- do res <- io $ exec_db $ getPaste a
+ do res <- exec_db $ getPaste a
     whenJust res $ \ paste -> do
       let c = paste_channel paste
-      chans <- io $ exec_db $ getChannels
+      chans <- exec_db $ getChannels
       when (c `elem` chans) $
        schedule_messages [ privmsg c $ "New paste: " ++ paste_title paste ]
 
-exec_db :: StoreM a -> IO a
-exec_db m = runStoreM (db_path default_config) m
+exec_db :: StoreM a -> M a
+exec_db m = do conf <- current_config
+               io $ runStoreM (db_path conf) m

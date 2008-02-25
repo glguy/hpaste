@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Bot.Base ( M()
+                , current_config
                 , end_bot
                 , fork
                 , io
@@ -11,6 +12,7 @@ module Bot.Base ( M()
                 )
   where
 
+import Config
 import System.IO
 import Control.Concurrent
 import Network.IRC
@@ -19,14 +21,18 @@ import MonadLib
 newtype M a = M (ReaderT BotEnv IO a)
  deriving Monad
 
-data BotEnv = BotEnv { bot_irc_handle :: Handle
+data BotEnv = BotEnv { bot_config     :: Config
+                     , bot_irc_handle :: Handle
                      , bot_done_mvar  :: MVar ()
                      , bot_out_chan   :: Chan Message
                      }
 
-runM h d o (M m) = runReaderT (BotEnv h d o) m
+runM c h d o (M m) = runReaderT (BotEnv c h d o) m
 
 asks f = f `fmap` ask
+
+current_config :: M Config
+current_config = M $ asks bot_config
 
 schedule_messages :: [Message] -> M ()
 schedule_messages ms = M $
