@@ -11,6 +11,7 @@ module Storage
   , getPastes
   , getChildren
   , writePaste
+  , topmost_parent
 
   -- * Channel manipulation
   , getChannels
@@ -147,3 +148,12 @@ clearChannels = with_db
   , Handler (\bstmt -> (execDML bstmt >> return ()) `catchDB` \ _ -> return ())
   )
 
+topmost_parent :: Maybe Int -> StoreM (Maybe Int)
+topmost_parent mb_parent =
+  return mb_parent `bind` \ parent ->
+  getPaste parent `bind` \ ppaste ->
+  return $ Just $ case paste_parentid ppaste of
+                    Just i | i > 0 -> i
+                    _ -> paste_id ppaste
+
+  where bind m f = maybe (return Nothing) f =<< m

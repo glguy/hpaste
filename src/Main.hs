@@ -110,7 +110,7 @@ handleSave title author content language channel mb_parent save preview =
   in if not (null validation_msgs)
         then outputHTML $ error_page validation_msgs
         else do
-  mb_parent1 <- topmost_parent mb_parent
+  mb_parent1 <- exec_db $ topmost_parent mb_parent
   chans <- exec_db getChannels
   let channel1 = if channel `elem` chans then channel else ""
   ip <- remoteAddr
@@ -212,12 +212,3 @@ member_check field_name x xs
   | x `elem` xs = Nothing
   | otherwise   = Just $ emphasize << field_name +++ " is not valid."
 
-topmost_parent :: Maybe Int -> PasteM (Maybe Int)
-topmost_parent mb_parent =
-  return mb_parent `bind` \ parent ->
-  exec_db (getPaste parent) `bind` \ ppaste ->
-  return $ Just $ case paste_parentid ppaste of
-                    Just i | i > 0 -> i
-                    _ -> paste_id ppaste
-
-  where bind m f = maybe (return Nothing) f =<< m

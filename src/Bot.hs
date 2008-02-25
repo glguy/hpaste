@@ -4,6 +4,7 @@ import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Data.List
+import Data.Maybe
 import Network
 import Network.IRC
 import System.CPUTime
@@ -25,6 +26,7 @@ main = do
     out_chan <- newChan
     runM conf handle done out_chan $
      do initialize
+        exec_db $ clearChannels
         fork listener
         fork writer
         fork announcer
@@ -52,7 +54,7 @@ handle_message m =
   case m of
     Message p "PING" xs -> return [Message p "PONG" xs]
     Message _ "JOIN" [chan] -> (exec_db $ addChannel chan) >> return []
-    Message _ "PART" [chan] -> (exec_db $ delChannel chan) >> return []
+    Message _ "PART" [chan,_] -> (exec_db $ delChannel chan) >> return []
     Message _ "PRIVMSG" _ -> handle_privmsg m
     _ -> io (print m) >> return []
 
@@ -96,15 +98,17 @@ announcer =
 announce baseurl a =
  do res <- exec_db $ getPaste a
     whenJust res $ \ paste -> do
+      parentid <- exec_db $ topmost_parent $ paste_parentid paste
       let c = paste_channel paste
       chans <- exec_db $ getChannels
       when (c `elem` chans) $
-       schedule_messages [privmsg c $ paste_to_announce baseurl paste]
+       schedule_messages [privmsg c $ paste_to_announce baseurl paste
+                                        $ fromMaybe (paste_id paste) parentid]
 
-paste_to_announce baseurl paste =
+paste_to_announce baseurl paste topmost_id =
   " \"" ++ paste_author paste ++ "\" pasted \""
   ++ paste_title paste ++ "\" at "
-  ++ baseurl ++ exportURL (methodURL mView (paste_id paste))
+  ++ baseurl ++ exportURL (methodURL mView topmost_id)
 
 exec_db :: StoreM a -> M a
 exec_db m = do conf <- current_config
