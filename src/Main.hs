@@ -157,7 +157,7 @@ handleRaw pasteId =
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do setHeader "Content-type" "text/plain"
-                    output $ paste_content x
+                    output $ UTF8.encodeString $ paste_content x
 
 
 handleList :: Maybe String -> Maybe Int -> Action
