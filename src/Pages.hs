@@ -51,9 +51,8 @@ list_page now pastes offset =
      << (table_header
      +++ concatHtml
           [tr
-           << (td << anchor ! [href view_url] << "view"
-           +++ td << show_author p
-           +++ td << show_title p
+           << (td << show_author p
+           +++ td << anchor ! [href view_url] << show_title p
            +++ td << show_ago now p
            +++ td << show_language p
            +++ td << paste_channel p
@@ -76,8 +75,7 @@ list_page now pastes offset =
       | offset > 0 = anchor ! [href later_url] << "later"
       | otherwise  = toHtml "later"
 
-    table_header = th << spaceHtml
-               +++ th << "Author"
+    table_header = th << "Author"
                +++ th << "Title"
                +++ th << "Age"
                +++ th << "Language"

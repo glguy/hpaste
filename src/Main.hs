@@ -21,6 +21,7 @@ import Utils.URL
 import Utils.Misc(maybeRead)
 import Utils.Compat()
 
+import Codec.Binary.UTF8.String as UTF8
 import Control.Concurrent
 import Control.Exception
 import Data.Time.Clock
@@ -63,7 +64,7 @@ mainCGI :: CGIT IO CGIResult
 mainCGI =
  do uri    <- requestURI
     method <- requestMethod
-    params <- getInputs
+    params <- getDecodedInputs
     conf   <- liftIO getConfig
     let p = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
@@ -185,7 +186,7 @@ exec_db m = do path <- db_path `fmap` get_conf
 outputHTML :: HTML a => PageM a -> PasteM CGIResult
 outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
                   xs <- buildHTML s
-                  output $ filter (/='\r') $ renderHtml xs
+                  output $ UTF8.encodeString $ filter (/='\r') $ renderHtml xs
 
 redirectTo :: URL -> CGI CGIResult
 redirectTo url = do sn <- scriptName
@@ -212,3 +213,5 @@ member_check field_name x xs
   | x `elem` xs = Nothing
   | otherwise   = Just $ emphasize << field_name +++ " is not valid."
 
+getDecodedInputs = map decoder `fmap` getInputs
+  where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
