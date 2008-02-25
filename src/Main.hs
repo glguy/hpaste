@@ -130,13 +130,16 @@ handleSave title author content language channel mb_parent save preview =
                     }
   mbPasteId <- exec_db $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
-    unless (null channel1) $ liftIO $ announce pasteId
+    unless (null channel1) $ announce pasteId
     handleView (fromMaybe pasteId mb_parent1)
 
-announce :: Int -> IO ()
-announce pasteId = (bracket (connectTo "" $ UnixSocket "pastes/announce")
-                           hClose $ \ h -> hPutStrLn h $ show pasteId
-                   ) `catch` \ _ -> return ()
+announce :: Int -> PasteM ()
+announce pasteId =
+ do sockname <- announce_socket `fmap` get_conf
+    liftIO $ (bracket (connectTo "" $ UnixSocket sockname)
+                       hClose $ \ h ->
+                 hPutStrLn h $ show pasteId
+                 ) `catch` \ _ -> return ()
 
 handleView :: Int -> Action
 handleView pasteId =
