@@ -47,14 +47,12 @@ initialize =
 listener :: M ()
 listener = forever $
  do message   <- read_message
-    responses <- handle_message message
+    responses <- handle_message message `catchall` return []
     schedule_messages responses
 
 handle_message m =
   case m of
     Message p "PING" xs -> return [Message p "PONG" xs]
-    Message _ "JOIN" [chan] -> (exec_db $ addChannel chan) >> return []
-    Message _ "PART" [chan,_] -> (exec_db $ delChannel chan) >> return []
     Message _ "PRIVMSG" _ -> handle_privmsg m
     _ -> io (print m) >> return []
 
@@ -62,8 +60,10 @@ handle_privmsg m@(Message _ _ [target,what]) =
  do conf <- current_config
     if target == irc_nick conf then
         case what of
-             'j':' ':chan -> return [joinChan chan]
-             'p':' ':chan -> return [part chan]
+             'j':' ':chan -> do exec_db $ addChannel chan
+                                return [joinChan chan]
+             'p':' ':chan -> do exec_db $ delChannel chan
+                                return [part chan]
              "quit"       -> end_bot >> return []
              _            -> io (print m) >> return []
       else if (irc_nick conf ++ ": url") `isPrefixOf` what then

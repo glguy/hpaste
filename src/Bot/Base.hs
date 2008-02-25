@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Bot.Base ( M()
+                , catchall
                 , current_config
                 , end_bot
                 , fork
@@ -15,7 +16,9 @@ module Bot.Base ( M()
 import Config
 import System.IO
 import Control.Concurrent
+import Control.Exception
 import Network.IRC
+import Prelude hiding (catch)
 import MonadLib
 
 newtype M a = M (ReaderT BotEnv IO a)
@@ -64,6 +67,11 @@ end_bot = M $
 
 io :: IO m -> M m
 io m = M $ inBase m
+
+catchall :: M a -> M a -> M a
+catchall (M m) (M e) = M $
+ do env <- ask
+    inBase $ runReaderT env m `catch` \ _ -> runReaderT env e
 
 fork :: M () -> M ThreadId
 fork (M m) = M $
