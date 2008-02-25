@@ -148,17 +148,17 @@ display_paste now paste =
   make_url (methodURL mNew (Just (paste_id paste)) (Just ())) >>= \ new_url ->
   make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
   return $
-      h2 << paste_title paste
-  +++ thediv ! [theclass "entrylinks"]
-      << (anchor ! [ href new_url] << "add modification"
-      +++ anchor ! [href raw_url] << "raw"
-         )
-  +++ style ! [thetype "text/css"]
+      style ! [thetype "text/css"]
       << defaultHighlightingCss
   +++ thediv ! [theclass "labels"]
       << (make_label "author" (paste_author paste)
       +++ make_label "age" (show_ago now paste)
       +++ make_label "language" (show_language paste)
+         )
+  +++ h2 << paste_title paste
+  +++ thediv ! [theclass "entrylinks"]
+      << (anchor ! [ href new_url] << "add modification"
+      +++ anchor ! [href raw_url] << "raw"
          )
   +++ thediv ! [theclass "contentbox"] << content
 
@@ -193,17 +193,17 @@ skin title_text other_links body_html =
 
   +++
   body
-  << (h1 << thespan << "hpastetwo"
+  << (h1 << anchor ! [href list_url]
+            << (thespan << "hpastetwo" +++ spaceHtml)
   +++ thediv ! [theclass "toplinks"]
       << (anchor ! [href list_url] << "recent"
       +++ anchor ! [href new_url] << "new"
       +++ other_links
          )
-  +++ body_html
+  +++ thediv ! [theclass "wrapper"] << body_html
+  +++ thediv ! [theclass "footer"]
+      << "hpaste 2008 - haskell-based web devel"
      )
-  +++
-  thediv ! [theclass "footer"]
-  << "hpaste 2008 - haskell-based web devel"
 
 show_id :: Paste -> String
 show_id p     = show $ paste_id p
