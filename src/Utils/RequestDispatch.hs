@@ -19,6 +19,8 @@ import Data.Maybe(mapMaybe)
 import Utils.URL
 import Utils.Misc
 
+-- IDEAS: support positional arguments
+
 data Arg a c = Arg String            -- ^ Arg Name
 data Req
 data Opt
@@ -59,7 +61,7 @@ docMethod (Method args method name docString) =
 data Context = Context
   { cMethod :: String       -- ^ HTTP method
   , cPath   :: String
-  , cParams :: [(String,String)]
+  , cParams :: Args
   } deriving (Show)
 
 makeDispatcher :: Handler t f c => Method t -> f -> Context -> Maybe (Error c)
@@ -184,9 +186,10 @@ instance IsArg t => Argument Many t [(String,t)] where
 
 -- | Haskell types that can be used in method arguments.
 class IsArg a where
-  show_arg  :: a -> ShowS
-  read_arg  :: String -> Maybe a
-  show_type :: f a -> String
+  show_arg  :: a -> ShowS        -- ^ Encode an argument value as a string
+  read_arg  :: String -> Maybe a -- ^ Decode an argument value from a string
+  show_type :: f a -> String     -- ^ Textual representation for the type
+                                 --   of an argument
 
 instance IsArg Int where
   read_arg    = maybeRead
