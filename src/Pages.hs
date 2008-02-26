@@ -134,12 +134,13 @@ edit_paste_form chans mb_pasteId language starting_text =
 display_pastes :: UTCTime -> Paste -> [Paste] -> PageM Html
 display_pastes now x xs =
   make_url (methodURL mNew (Just (paste_id x)) Nothing) >>= \ new_url ->
+  make_url (methodURL mView (paste_id x)) >>= \ view_url ->
   skin ("Viewing " ++ show_title x) (anchor ! [href new_url] << "add revision")
-  . toHtml =<< mapM (display_paste now) (x:xs)
+  . toHtml =<< mapM (display_paste now view_url) (x:xs)
   where
 
-display_paste :: UTCTime -> Paste -> PageM Html
-display_paste now paste =
+display_paste :: UTCTime -> String -> Paste -> PageM Html
+display_paste now view_url paste =
   make_url (methodURL mNew (Just (paste_id paste)) (Just ())) >>= \ new_url ->
   make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
   return $
@@ -148,6 +149,8 @@ display_paste now paste =
   +++ thediv ! [theclass "entrylinks"]
       << (anchor ! [ href new_url] << "modify"
       +++ anchor ! [href raw_url] << "download"
+      +++ anchor ! [identifier ("a" ++ show (paste_id paste)),
+                    href (view_url ++ "#a" ++ show(paste_id paste)) ] << "link"
          )
   +++ h2 << (thespan ! [theclass "leftmost"] << paste_title paste
   +++ thediv ! [theclass "labels"]
