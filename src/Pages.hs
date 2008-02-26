@@ -45,8 +45,6 @@ list_page now pastes offset =
 
   where
   html_result urls n earlier_url later_url =
-     h2 << "Recent Pastes"
-    +++
      table ! [theclass "pastelist"]
      << (table_header
      +++ concatHtml
@@ -84,10 +82,12 @@ list_page now pastes offset =
 edit_paste_form :: [String] -> Maybe Int -> String -> String -> PageM Html
 edit_paste_form chans mb_pasteId language starting_text =
   skin page_title noHtml $
-  h2 << page_title
+  h2 ! [theclass "newheader"] << page_title
  +++
   form ! [action "save", method "post"]
-  << (thediv ! [theclass "tabsrow1"]
+  << (textarea ! [rows "24", cols "80",identifier "content",name "content"]
+      << starting_text
+  +++ thediv ! [theclass "tabsrow1"]
       << (label ! [thefor "author"]
           << (thespan << "author "
           +++ input ! [ name "author", identifier "author", thetype "text"
@@ -107,13 +107,8 @@ edit_paste_form chans mb_pasteId language starting_text =
       +++ label ! [thefor "channel"]
           << (thespan << "channel " +++ channel_drop_down)
          )
-  +++ label ! [thefor "content"]
-      << ("content "
-      +++ textarea ! [rows "24", cols "80",identifier "content",name "content"]
-          << starting_text
-         )
   +++ parent_field
-      )
+     )
 
   where
   page_title = case mb_pasteId of Just _ -> "New Revision"
@@ -150,16 +145,17 @@ display_paste now paste =
   return $
       style ! [thetype "text/css"]
       << defaultHighlightingCss
+  +++ thediv ! [theclass "entrylinks"]
+      << (anchor ! [ href new_url] << "modify"
+      +++ anchor ! [href raw_url] << "download"
+         )
+  +++ h2 << (thespan ! [theclass "leftmost"] << paste_title paste
   +++ thediv ! [theclass "labels"]
       << (make_label "author" (paste_author paste)
       +++ make_label "age" (show_ago now paste)
       +++ make_label "language" (show_language paste)
-         )
-  +++ h2 << paste_title paste
-  +++ thediv ! [theclass "entrylinks"]
-      << (anchor ! [ href new_url] << "add modification"
-      +++ anchor ! [href raw_url] << "raw"
-         )
+         ))
+  +++ thediv ! [theclass "clearer"] << noHtml
   +++ thediv ! [theclass "contentbox"] << content
 
   where

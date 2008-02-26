@@ -59,7 +59,7 @@ usage :: String
 usage = unlines $ intersperse "" docs
 
 main :: IO ()
-main = runFastCGIConcurrent' forkIO 5 mainCGI
+main = runFastCGIConcurrent' forkIO 10 mainCGI
 
 mainCGI :: CGIT IO CGIResult
 mainCGI =
