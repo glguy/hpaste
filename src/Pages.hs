@@ -6,6 +6,7 @@ import Data.Time
 import MonadLib
 
 import API
+import Highlight
 import Config
 import Types
 import Utils.URL
@@ -114,12 +115,10 @@ edit_paste_form chans mb_pasteId language starting_text =
                                   Nothing -> "New Paste"
 
   language_drop_down = select ! [name "language", identifier "language"]
-                       << (option ! [value ""] << "Plain text"
-                       +++ map language_option []
-                          )
+                       << map language_option languages
 
-  language_option l | l == language = option ! [selected] << l
-                    | otherwise     = option << l
+  language_option (k,v) | v == language = option ! [selected, value v] << k
+                        | otherwise     = option ! [value v] << k
 
   channel_drop_down = select ! [name "channel", identifier "channel"]
                       << (option << emphasize << "none"
@@ -130,16 +129,16 @@ edit_paste_form chans mb_pasteId language starting_text =
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
-display_pastes :: UTCTime -> Paste -> [Paste] -> PageM Html
-display_pastes now x xs =
+display_pastes :: UTCTime -> Paste -> [Paste] -> [String] -> PageM Html
+display_pastes now x xs cs =
   make_url (methodURL mNew (Just (paste_id x)) Nothing) >>= \ new_url ->
   make_url (methodURL mView (paste_id x)) >>= \ view_url ->
   skin ("Viewing " ++ show_title x) (anchor ! [href new_url] << "add revision")
-  . toHtml =<< mapM (display_paste now view_url) (x:xs)
+  . toHtml =<< mapM (display_paste now view_url) (zip (x:xs) cs)
   where
 
-display_paste :: UTCTime -> String -> Paste -> PageM Html
-display_paste now view_url paste =
+display_paste :: UTCTime -> String -> (Paste, String) -> PageM Html
+display_paste now view_url (paste, rendered) =
   make_url (methodURL mNew (Just (paste_id paste)) (Just ())) >>= \ new_url ->
   make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
   return $
@@ -156,14 +155,12 @@ display_paste now view_url paste =
       +++ make_label "language" (show_language paste)
          ))
   +++ thediv ! [theclass "clearer"] << noHtml
-  +++ thediv ! [theclass "contentbox"] << content
+  +++ thediv ! [theclass "contentbox"] << primHtml rendered
 
   where
   make_label k v = thespan ! [theclass "labelitem"]
                    << (thespan ! [theclass "labelkey"] << k
                    +++ thespan ! [theclass "labelvalue"] << v)
-
-  content = pre ! [theclass "plaintext"] << paste_content paste
 
 skin :: String -> Html -> Html -> PageM Html
 skin title_text other_links body_html =
@@ -175,6 +172,8 @@ skin title_text other_links body_html =
   header
   << (thetitle << (title_text ++ " - hpaste")
   +++ thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
+      << noHtml
+  +++ thelink ! [rel "stylesheet", thetype "text/css", href "/pygmentize.css"]
       << noHtml
   +++ meta ! [httpequiv "Content-Type", content "text/html; charset=utf-8"]
      )

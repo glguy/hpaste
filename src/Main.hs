@@ -13,6 +13,7 @@
 module Main where
 
 import API
+import Highlight
 import Pages
 import Storage
 import Types
@@ -106,7 +107,7 @@ handleSave title author content language channel mb_parent save preview =
                                   ,blank_check "author" author
                                   ,blank_check "content" content
                                   ,member_check "language" language
-                                                              ("":languages)
+                                                   ("":map snd languages)
                                   ]
   in if not (null validation_msgs)
         then outputHTML $ error_page validation_msgs
@@ -149,7 +150,10 @@ handleView pasteId =
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- exec_db $ getChildren (pasteId)
                     now <- liftIO $ getCurrentTime
-                    outputHTML $ display_pastes now x kids
+                    xs <- liftIO $ mapM highlight (x:kids)
+                    outputHTML $ display_pastes now x kids xs
+  where
+  highlight paste = highlightAs (paste_language paste) (paste_content paste)
 
 handleRaw :: Int -> Action
 handleRaw pasteId =
@@ -215,5 +219,3 @@ member_check field_name x xs
 
 getDecodedInputs = map decoder `fmap` getInputs
   where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
-
-languages = []

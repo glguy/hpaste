@@ -14,6 +14,13 @@ cabal-version:  >= 1.2
 flag small_base
     description: Choose the new smaller, split-up base package.
 
+executable pythontest
+    Extra-Libraries: python2.5, m
+    main-is:         Python.hs
+    hs-source-dirs:  src
+    C-sources:       cbits/python-local.c
+    Includes:        python-local.h
+    Include-dirs:    include
 executable hpastebot
     main-is:         Bot.hs
     ghc-options:     -threaded
@@ -47,6 +54,7 @@ executable hpaste.fcgi
                      time              >= 1.1.2.0,
                      monadLib          >= 3.4.4,
                      bytestring        >= 0.9.0.1,
+                     process           >= 1.0.0.0,
                      Takusen           == 0.7,
                      -- because of cgi:
                      mtl

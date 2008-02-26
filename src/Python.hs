@@ -87,13 +87,13 @@ toString obj =
 -- formatter = HtmlFormatter(linenos=True, cssclass="source")
 -- result = highlight(code, lexer, formatter)
 mycode =
- do get_lexer <- "pygments.lexers" `fromImport` "get_lexer_by_name"
+ do let code = "instance Functor f where\n fmap :: f a"
+
+    get_lexer <- fromImport "pygments.lexers" "get_lexer_by_name"
     lexer     <- call1 get_lexer "haskell"
-    formatter_class <- "pygments.formatters" `fromImport` "HtmlFormatter"
-    formatter <- call0 formatter_class
-    highlight <- "pygments" `fromImport` "highlight"
-    res <- let code = "instance Functor f where\n fmap :: f a"
-           in call3 highlight code lexer formatter
+    formatter <- call0 =<< fromImport "pygments.formatters" "HtmlFormatter"
+    highlight <- fromImport "pygments" "highlight"
+    res       <- call3 highlight code lexer formatter
     putStrLn =<< toString res
 
 main = pyInitialize >> mycode >> pyFinalize
