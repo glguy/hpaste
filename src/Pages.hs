@@ -2,7 +2,6 @@
 module Pages where
 
 import Text.XHtml.Strict hiding (URL)
-import Text.Highlighting.Kate
 import Data.Time
 import MonadLib
 
@@ -116,7 +115,7 @@ edit_paste_form chans mb_pasteId language starting_text =
 
   language_drop_down = select ! [name "language", identifier "language"]
                        << (option ! [value ""] << "Plain text"
-                       +++ map language_option languages
+                       +++ map language_option []
                           )
 
   language_option l | l == language = option ! [selected] << l
@@ -144,9 +143,7 @@ display_paste now view_url paste =
   make_url (methodURL mNew (Just (paste_id paste)) (Just ())) >>= \ new_url ->
   make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
   return $
-      style ! [thetype "text/css"]
-      << defaultHighlightingCss
-  +++ thediv ! [theclass "entrylinks"]
+      thediv ! [theclass "entrylinks"]
       << (anchor ! [ href new_url] << "modify"
       +++ anchor ! [href raw_url] << "download"
       +++ anchor ! [identifier ("a" ++ show (paste_id paste)),
@@ -166,15 +163,7 @@ display_paste now view_url paste =
                    << (thespan ! [theclass "labelkey"] << k
                    +++ thespan ! [theclass "labelvalue"] << v)
 
-  content
-    | null (paste_language paste) = pre ! [theclass "plaintext"]
-                                    << paste_content paste
-    | otherwise = case highlightAs (paste_language paste)
-                                   (paste_content paste) of
-                    Left e -> pre << e
-                    Right ls -> formatAsXHtml [OptNumberLines]
-                                    (paste_language paste) ls
-
+  content = pre ! [theclass "plaintext"] << paste_content paste
 
 skin :: String -> Html -> Html -> PageM Html
 skin title_text other_links body_html =
@@ -192,8 +181,7 @@ skin title_text other_links body_html =
 
   +++
   body
-  << (h1 << anchor ! [href list_url]
-            << (thespan << "hpastetwo" +++ spaceHtml)
+  << (h1 << anchor ! [href list_url] << "hpastetwo"
   +++ thediv ! [theclass "toplinks"]
       << (anchor ! [href list_url] << "recent"
       +++ anchor ! [href new_url] << "new"

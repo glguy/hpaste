@@ -47,7 +47,6 @@ executable hpaste.fcgi
                      time              >= 1.1.2.0,
                      monadLib          >= 3.4.4,
                      bytestring        >= 0.9.0.1,
-                     highlighting-kate >= 0.2.1,
                      Takusen           == 0.7,
                      -- because of cgi:
                      mtl

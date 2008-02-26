@@ -33,7 +33,6 @@ import Network
 import Prelude hiding (catch)
 import System.IO
 import Text.XHtml.Strict hiding (URL)
-import Text.Highlighting.Kate (languages)
 import MonadLib
 
 type PasteM = ReaderT Config (CGIT IO)
@@ -216,3 +215,5 @@ member_check field_name x xs
 
 getDecodedInputs = map decoder `fmap` getInputs
   where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
+
+languages = []
