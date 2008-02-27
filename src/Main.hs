@@ -13,7 +13,8 @@
 module Main where
 
 import API
-import Highlight
+-- import Highlight
+import Python hiding(main)
 import Pages
 import Storage
 import Types
@@ -59,7 +60,7 @@ usage :: String
 usage = unlines $ intersperse "" docs
 
 main :: IO ()
-main = runFastCGIConcurrent' forkIO 10 mainCGI
+main = withPython $ runFastCGIConcurrent' forkIO 10 mainCGI
 
 mainCGI :: CGIT IO CGIResult
 mainCGI =
@@ -100,6 +101,7 @@ handleNew mb_pasteId edit =
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> Action
 handleSave title author content language channel mb_parent save preview =
+  liftIO get_languages >>= \ languages ->
   let validation_msgs = catMaybes [length_check "title" 40 title
                                   ,length_check "author" 40 author
                                   ,length_check "content" 5000 content
@@ -107,7 +109,7 @@ handleSave title author content language channel mb_parent save preview =
                                   ,blank_check "author" author
                                   ,blank_check "content" content
                                   ,member_check "language" language
-                                                   ("":map snd languages)
+                                                   languages
                                   ]
   in if not (null validation_msgs)
         then outputHTML $ error_page validation_msgs

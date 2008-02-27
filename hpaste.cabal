@@ -15,9 +15,9 @@ flag small_base
     description: Choose the new smaller, split-up base package.
 
 executable pythontest
-    Extra-Libraries: python2.5, m
-    main-is:         Python.hs
+    main-is:         Stub.hs
     hs-source-dirs:  src
+    Extra-Libraries: python2.5, m
     C-sources:       cbits/python-local.c
     Includes:        python-local.h
     Include-dirs:    include
@@ -29,6 +29,10 @@ executable hpastebot
                      Takusen           == 0.7
 
 executable hpaste.fcgi
+    Extra-Libraries: python2.5, m
+    C-sources:       cbits/python-local.c
+    Includes:        python-local.h
+    Include-dirs:    include
     main-is:         Main.hs
     ghc-options:     -threaded
     extensions:

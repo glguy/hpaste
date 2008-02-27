@@ -6,7 +6,7 @@ import Data.Time
 import MonadLib
 
 import API
-import Highlight
+import Python
 import Config
 import Types
 import Utils.URL
@@ -115,10 +115,10 @@ edit_paste_form chans mb_pasteId language starting_text =
                                   Nothing -> "New Paste"
 
   language_drop_down = select ! [name "language", identifier "language"]
-                       << map language_option languages
+                       << map language_option ["Haskell"]
 
-  language_option (k,v) | v == language = option ! [selected, value v] << k
-                        | otherwise     = option ! [value v] << k
+  language_option k | k == language = option ! [selected, value k] << k
+                    | otherwise     = option ! [value k] << k
 
   channel_drop_down = select ! [name "channel", identifier "channel"]
                       << (option << emphasize << "none"
