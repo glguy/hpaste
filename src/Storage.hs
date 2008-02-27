@@ -13,6 +13,11 @@ module Storage
   , writePaste
   , topmost_parent
 
+  -- * Annotations
+  , getAnnotations
+  , addAnnotations
+  , delAnnotations
+
   -- * Channel manipulation
   , getChannels
   , addChannel
@@ -34,18 +39,22 @@ get_db = SM ask
 runStoreM :: FilePath -> StoreM a -> IO a
 runStoreM db (SM m) = runReaderT db m
 
-data Handler bstmt s a = Handler (forall mark. bstmt -> DBM mark s a)
+data Handler bstmt s a  = Handler (forall mark. bstmt -> DBM mark s a)
+data StmtH st s a       = StmtH (forall m. PreparedStmt m st -> DBM m s a)
 
-with_db (query,bindings,Handler f) =
+with_statement query (StmtH f) =
   get_db >>= \db -> SM $ lift (
-  withSession (connect db) (
-    withPreparedStatement (prepareQuery (sql query)) (\ pstmt ->
-      withBoundStatement pstmt bindings f
+    withSession (connect db) (
+      withPreparedStatement (prepareQuery (sql query)) f
     )
-  ) `catchDB` \e -> ioError (userError (show e))
+    `catchDB` \e -> ioError (userError (show e))
   )
 
+with_db (query,bindings,Handler f) =
+  with_statement query $
+    StmtH (\pstmt -> withBoundStatement pstmt bindings f)
 
+try_exec_dml s = (execDML s >> return ()) `catchDB` \_ -> return ()
 
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset = with_db
@@ -72,6 +81,35 @@ getPaste pasteId = with_db
   , [bindP pasteId]
   , Handler (\bstmt -> doQuery bstmt iterFirst (Nothing :: Maybe Paste))
   )
+
+getAnnotations :: Int -> StoreM [Int]
+getAnnotations pasteId = with_db
+  ( "SELECT line FROM annotation WHERE pasteid = ?"
+  , [bindP pasteId]
+  , Handler (\s -> doQuery s collect_field_all [])
+  )
+
+-- | The empt ylist of lines means "remove all annotations"!
+delAnnotations :: Int -> [Int] -> StoreM ()
+delAnnotations pid [] = with_db
+  ( "DELETE FROM annotation WHERE pastedid = ?"
+  , [bindP pid]
+  , Handler try_exec_dml
+  )
+
+delAnnotations pid ls = with_statement query $
+  StmtH (\s -> mapM_ (\args -> withBoundStatement s args try_exec_dml) binds)
+  where
+  query = "DELETE FROM annotation WHERE pastedid = ? AND line = ?"
+  binds = [ [bindP pid,bindP l] | l <- ls ]
+
+
+addAnnotations :: Int -> [Int] -> StoreM ()
+addAnnotations pid ls = with_statement query $
+  StmtH (\s -> mapM_ (\args -> withBoundStatement s args try_exec_dml) binds)
+  where
+  query = "INSERT INTO annotation (pasteid,line) VALUES (?,?)"
+  binds = [ [bindP pid,bindP l] | l <- ls ]
 
 
 
@@ -121,11 +159,12 @@ getChannels :: StoreM [String]
 getChannels = with_db
   ( "SELECT channelname from channel ORDER BY channelname"
   , []
-  , Handler (\bstmt -> reverse `fmap` doQuery bstmt iter [])
+  , Handler (\bstmt -> reverse `fmap` doQuery bstmt collect_field_all [])
   )
-  where
-  iter :: Monad m => String -> IterAct m [String]
-  iter x xs = result' (x:xs)
+
+-- Collect all from a single field.
+collect_field_all :: Monad m => a -> IterAct m [a]
+collect_field_all x xs = result' (x:xs)
 
 addChannel :: String -> StoreM ()
 addChannel chan = with_db
