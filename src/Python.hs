@@ -1,5 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface, TypeSynonymInstances, FlexibleInstances #-}
-module Python (main, withPython, highlightAs, get_languages) where
+module Python where
 
 import Foreign
 import Foreign.Ptr
@@ -14,6 +14,20 @@ import qualified System.IO.UTF8
 data PyObjectStruct = PyObjectStruct
 type PyObject = Ptr PyObjectStruct
 type PyObj = ForeignPtr PyObjectStruct
+
+
+
+foreign import ccall "python2.5/Python.h PyEval_InitThreads"
+  pyEvalInitThreads :: IO ()
+foreign import ccall "python2.5/Python.h PyGILState_Ensure"
+  pyGILStateEnsure :: IO (Ptr ())
+foreign import ccall "python2.5/Python.h PyGILState_Release"
+  pyGILStateRelease :: Ptr () -> IO ()
+
+withGIL m = do s <- pyGILStateEnsure
+               x <- m
+               pyGILStateRelease s
+               return x
 
 foreign import ccall "python2.5/Python.h Py_Initialize"
   pyInitialize :: IO ()
@@ -177,7 +191,7 @@ highlightAs lang code =
     lexer     <- call1withKeywords get_lexer lang [("stripall", t)]
 
     no_lexer  <- isNull lexer
-    if no_lexer then pyErrClear >> highlightAs "text" code else do
+    if no_lexer then return "bad lang" else do
       formatter_class <- fromImport "pygments.formatters" "HtmlFormatter"
       formatter <- call0withKeywords formatter_class [("linenos", t)]
 

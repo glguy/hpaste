@@ -60,7 +60,8 @@ usage :: String
 usage = unlines $ intersperse "" docs
 
 main :: IO ()
-main = withPython $ runFastCGIConcurrent' forkIO 10 mainCGI
+main = withPython $ pyEvalInitThreads >>
+                    runFastCGIConcurrent' forkIO 10 mainCGI
 
 mainCGI :: CGIT IO CGIResult
 mainCGI =
