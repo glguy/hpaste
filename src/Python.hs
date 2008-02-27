@@ -19,6 +19,8 @@ type PyObj = ForeignPtr PyObjectStruct
 
 foreign import ccall "python2.5/Python.h PyEval_InitThreads"
   pyEvalInitThreads :: IO ()
+foreign import ccall "python2.5/Python.h PyEval_ReleaseLock"
+  pyEvalReleaseLock :: IO ()
 foreign import ccall "python2.5/Python.h PyGILState_Ensure"
   pyGILStateEnsure :: IO (Ptr ())
 foreign import ccall "python2.5/Python.h PyGILState_Release"
@@ -184,7 +186,7 @@ fromImport mod klass =
 -- result = highlight(code, lexer, formatter)
 highlightAs :: String -> String -> IO String
 highlightAs _ "" = return ""
-highlightAs lang code =
+highlightAs lang code = withGIL $
  do t         <- returnTrue
 
     get_lexer <- fromImport "pygments.lexers" "get_lexer_by_name"
@@ -199,7 +201,7 @@ highlightAs lang code =
       unicodeToString =<< call3 highlight code lexer formatter
 
 get_languages :: IO [String]
-get_languages =
+get_languages = withGIL $
  do lexers <- call0 =<< fromImport "pygments.lexers" "get_all_lexers"
     forEach lexers $ \ x -> tupleGetItem x 0 >>= toString
 
