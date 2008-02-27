@@ -37,14 +37,16 @@ import System.IO
 import Text.XHtml.Strict hiding (URL)
 import MonadLib
 
-type PasteM = ReaderT Config (CGIT IO)
+type PasteM = ReaderT (String -> String -> IO String, Config) (CGIT IO)
 type Action = PasteM CGIResult
 
 get_conf :: PasteM Config
-get_conf = ask
+get_conf = fmap snd ask
 
-runPasteM :: Config -> PasteM a -> CGI a
-runPasteM = runReaderT
+get_hl = fmap fst ask
+
+runPasteM :: (String -> String -> IO String) -> Config -> PasteM a -> CGI a
+runPasteM a b = runReaderT (a,b)
 
 handlers :: [Context -> Maybe (Either String Action)]
 docs     :: [String]
@@ -69,9 +71,10 @@ mainCGI =
     method <- requestMethod
     params <- getDecodedInputs
     conf   <- liftIO getConfig
+    hl     <- liftIO make_highlighter
     let p = uriPath uri
     let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
-    runPasteM conf $ case runAPI c handlers of
+    runPasteM hl conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre $ toHtml usage
       Just (Left err) -> outputHTML $ return err
       Just (Right r)  -> r
@@ -84,8 +87,9 @@ handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
  do chans <- exec_db getChannels
     mb_text <- get_previous
+    langs <- liftIO $ get_languages
     log_on_error mb_text $ \ (text, language) ->
-      outputHTML $ edit_paste_form chans mb_pasteId language text
+      outputHTML $ edit_paste_form chans mb_pasteId language text langs
   where
   get_previous =
     case mb_pasteId of
@@ -110,7 +114,7 @@ handleSave title author content language channel mb_parent save preview =
                                   ,blank_check "author" author
                                   ,blank_check "content" content
                                   ,member_check "language" language
-                                                   languages
+                                                   (map snd languages)
                                   ]
   in if not (null validation_msgs)
         then outputHTML $ error_page validation_msgs
@@ -148,15 +152,16 @@ announce pasteId =
 
 handleView :: Int -> Action
 handleView pasteId =
- do res <- exec_db $ getPaste pasteId
+ do highlightAs <- get_hl
+    res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- exec_db $ getChildren (pasteId)
                     now <- liftIO $ getCurrentTime
-                    xs <- liftIO $ mapM highlight (x:kids)
+                    xs <- liftIO $ mapM (highlight highlightAs) (x:kids)
                     outputHTML $ display_pastes now x kids xs
   where
-  highlight paste = highlightAs (paste_language paste) (paste_content paste)
+  highlight f paste = f (paste_language paste) (paste_content paste)
 
 handleRaw :: Int -> Action
 handleRaw pasteId =

@@ -13,8 +13,6 @@ import qualified System.IO.UTF8
 
 data PyObjectStruct = PyObjectStruct
 type PyObject = Ptr PyObjectStruct
-type PyObj = ForeignPtr PyObjectStruct
-
 
 
 foreign import ccall "python2.5/Python.h PyEval_InitThreads"
@@ -56,8 +54,6 @@ foreign import ccall "python-local.h py_decref"
 
 foreign import ccall "python-local.h &py_decref"
   ppyDecRef :: FinalizerPtr PyObjectStruct
-
-wrapPtr p = newForeignPtr ppyDecRef p
 
 -- New Reference
 foreign import ccall "python2.5/Python.h PyEval_CallObject"
@@ -104,52 +100,29 @@ foreign import ccall "python2.5/Python.h PyDict_DelItem"
 foreign import ccall "python2.5/Python.h PyDict_Clear"
   pyDictClear :: PyObject -> IO ()
 
-dictNew :: IO PyObj
-dictNew = wrapPtr =<< pyDictNew
-
 dictGetItem d k =
-  withForeignPtr d $ \ dd ->
-  withForeignPtr k $ \ kk ->
-  pyDictGetItem dd kk >>= \ x ->
+  pyDictGetItem d k >>= \ x ->
   pyIncRef x >>
-  wrapPtr x
+  return x
 
-dictSetItem d k v =
-  withForeignPtr d $ \ dd ->
-  withForeignPtr k $ \ kk ->
-  withForeignPtr v $ \ vv ->
-  pyDictSetItem dd kk vv
-
-dictDelItem d k =
-  withForeignPtr d $ \ dd ->
-  withForeignPtr k $ \ kk ->
-  pyDictDelItem dd kk
-
-dictSetItemString :: PyObj -> String -> PyObj -> IO CInt
 dictSetItemString d k v =
-  withForeignPtr d $ \ dd ->
   withCString    k $ \ kk ->
-  withForeignPtr v $ \ vv ->
-  pyDictSetItemString dd kk vv
+  pyDictSetItemString d kk v
 
 dictGetItemString d k =
-  withForeignPtr d $ \ dd ->
   withCString    k $ \ kk ->
-  pyDictGetItemString dd kk >>= \ x ->
+  pyDictGetItemString d kk >>= \ x ->
   pyIncRef x >>
-  wrapPtr x
-
-dictClear d = withForeignPtr d pyDictClear
+  return x
 
 dictFromList xs =
  do d <- pyDictNew
     mapM_ (aux d) xs
-    wrapPtr d
+    return d
  where
  aux d (k, v) =
    withCString k $ \ kk ->
-   withForeignPtr v $ \ vv ->
-   pyDictSetItemString d kk vv
+   pyDictSetItemString d kk v
 
 
 
@@ -162,20 +135,20 @@ fetch pmod object_name = withCString object_name $ pyObjectGetAttrString pmod
 buildValue1 pat val =
   withCString pat $ \ ppat ->
   apply_arg val $ \ pval ->
-  wrapPtr =<< pyBuildValue1 ppat pval
+  pyBuildValue1 ppat pval
 
 buildValue3 pat a b c =
   withCString pat $ \ ppat ->
   apply_arg a     $ \ aa   ->
   apply_arg b     $ \ bb   ->
   apply_arg c     $ \ cc   ->
-  wrapPtr =<< pyBuildValue3 ppat aa bb cc
+  pyBuildValue3 ppat aa bb cc
 
 fromImport mod klass =
  do pmod <- importModule mod
     obj <- fetch pmod klass
     pyDecRef pmod
-    wrapPtr obj
+    return obj
 
 -- from pygments import highlight
 -- from pygments.lexers import PythonLexer
@@ -184,30 +157,34 @@ fromImport mod klass =
 -- lexer = get_lexer_by_name("python", stripall=True)
 -- formatter = HtmlFormatter(linenos=True, cssclass="source")
 -- result = highlight(code, lexer, formatter)
-highlightAs :: String -> String -> IO String
-highlightAs _ "" = return ""
-highlightAs lang code = withGIL $
- do t         <- returnTrue
 
+make_highlighter :: IO (String -> String -> IO String)
+make_highlighter = withGIL $
+ do t <- pyReturnTrue
     get_lexer <- fromImport "pygments.lexers" "get_lexer_by_name"
-    lexer     <- call1withKeywords get_lexer lang [("stripall", t)]
+    formatter_class <- fromImport "pygments.formatters" "HtmlFormatter"
+    formatter <- call0withKeywords formatter_class [("linenos", t)]
+    pyDecRef formatter_class
+    highlight <- fromImport "pygments" "highlight"
+    let lexer_dict = [("stripall",t)]
+    return $ \ lang code -> withGIL $
+      do lexer <- call1withKeywords get_lexer lang lexer_dict
+         if isNull lexer
+           then return "no lexer"
+           else unicodeToString =<< call3 highlight code lexer formatter
 
-    no_lexer  <- isNull lexer
-    if no_lexer then return "bad lang" else do
-      formatter_class <- fromImport "pygments.formatters" "HtmlFormatter"
-      formatter <- call0withKeywords formatter_class [("linenos", t)]
-
-      highlight <- fromImport "pygments" "highlight"
-      unicodeToString =<< call3 highlight code lexer formatter
-
-get_languages :: IO [String]
+get_languages :: IO [(String,String)]
 get_languages = withGIL $
  do lexers <- call0 =<< fromImport "pygments.lexers" "get_all_lexers"
-    forEach lexers $ \ x -> tupleGetItem x 0 >>= toString
+    forEach lexers $ \ x -> do k <- tupleGetItem x 0 >>= toString
+                               aliases <- tupleGetItem x 1
+                               v <- toString =<< tupleGetItem aliases 0
+                               return (k,v)
 
 withPython m = bracket_ pyInitialize pyFinalize m
 
-main = withPython $ do highlightAs "haskell" "sdfasdf"
+main = withPython $ do highlightAs <- make_highlighter
+                       highlightAs "haskell" "sdfasdf"
                        highlightAs "skell" "asdf"
 -------------------------------------------------------------------------------
 -- Function Calling
@@ -241,54 +218,38 @@ foreign import ccall "python2.5/Python.h PyEval_CallObjectWithKeywords"
 foreign import ccall "python2.5/Python.h PyEval_CallMethod"
   pyCallMethod0 :: PyObject -> CString -> CString -> IO PyObject
 
-callObjectWithKeywords f args kargs =
-  withForeignPtr f $ \ ff ->
-  withForeignPtr args $ \ aa ->
-  withForeignPtr kargs $ \ kk ->
-  wrapPtr =<< pyCallObjectWithKeywords ff aa kk
+call0 f = withCString "()" $ \ format ->
+          pyCallFunction0 f format
 
-call0 :: PyObj -> IO PyObj
-call0 f = withForeignPtr f $ \ fp ->
-          withCString "()" $ \ format ->
-          pyCallFunction0 fp format >>= wrapPtr
-
-call0withKeywords :: PyObj -> [(String,PyObj)] -> IO PyObj
+call0withKeywords :: PyObject -> [(String,PyObject)] -> IO PyObject
 call0withKeywords f ks =
-  withForeignPtr f $ \ fp ->
-  dictFromList ks >>= \ k ->
-  withForeignPtr k $ \ kk ->
-  wrapPtr =<< pyCallObjectWithKeywords fp nullPtr kk
+ do k <- dictFromList ks
+    x <- pyCallObjectWithKeywords f nullPtr k
+    pyDecRef k
+    return x
 
-callMethod0 :: PyObj -> String -> IO PyObj
 callMethod0 obj meth =
-  withForeignPtr obj $ \ o ->
   withCString meth   $ \ m ->
   withCString "()"   $ \ format ->
-  wrapPtr =<< pyCallMethod0 o m format
+  pyCallMethod0 obj m format
 
-call1 :: PyArg a => PyObj -> a -> IO PyObj
-call1 f a = withForeignPtr f $ \ fp ->
-            withCString ('(':format_char a:")") $ \ format ->
+call1 f a = withCString ('(':format_char a:")") $ \ format ->
             apply_arg a $ \ aa ->
-            pyCallFunction1 fp format aa >>= wrapPtr
+            pyCallFunction1 f format aa
 
-call1withKeywords :: PyArg a => PyObj -> a -> [(String,PyObj)] -> IO PyObj
 call1withKeywords f a ks =
-  withForeignPtr f $ \ ff ->
-  dictFromList ks >>= \ k ->
-  withForeignPtr k $ \ kk ->
-  buildValue1 ('(':format_char a:")") a >>= \ args ->
-  withForeignPtr args $ \ aa ->
-  pyCallObjectWithKeywords ff aa kk >>= wrapPtr
+ do k <- dictFromList ks
+    args <- buildValue1 ('(':format_char a:")") a
+    x <- pyCallObjectWithKeywords f args k
+    pyDecRef args
+    pyDecRef k
+    return x
 
-call3 :: (PyArg a, PyArg c, PyArg e)
-      => PyObj -> a -> c -> e -> IO PyObj
-call3 f a b c = withForeignPtr f $ \ fp ->
-                withCString format_string $ \ format ->
+call3 f a b c = withCString format_string $ \ format ->
                 apply_arg a $ \ aa ->
                 apply_arg b $ \ bb ->
                 apply_arg c $ \ cc ->
-                pyCallFunction3 fp format aa bb cc >>= wrapPtr
+                pyCallFunction3 f format aa bb cc
   where format_string = '(':format_char a:format_char b:format_char c:")"
 
 class PyArg a where
@@ -298,11 +259,13 @@ class PyArg a where
 instance PyArg String where
   format_char _ = 'O'
   apply_arg a f = do u <- toPyUnicode a
-                     withForeignPtr u f
+                     x <- f u
+                     pyDecRef u
+                     return x
 
-instance PyArg PyObj where
+instance PyArg PyObject where
   format_char _ = 'O'
-  apply_arg = withForeignPtr
+  apply_arg a f = f a
 
 instance PyArg CInt where
   format_char _ = 'i'
@@ -323,12 +286,9 @@ foreign import ccall "python-local.h py_return_false"
 foreign import ccall "python2.5/Python.h &_Py_NoneStruct"
   pyNone :: PyObject
 
-isNone obj = withForeignPtr obj $ \ o -> return (o == pyNone)
+isNone obj = obj == pyNone
 
-isNull obj = withForeignPtr obj $ \ o -> return (o == nullPtr)
-
-returnTrue = wrapPtr =<< pyReturnTrue
-returnFalse = wrapPtr =<< pyReturnFalse
+isNull obj = obj == nullPtr
 
 -------------------------------------------------------------------------------
 -- Strings
@@ -343,13 +303,12 @@ foreign import ccall "python-local.h py_unicode_as_utf8"
   pyUnicodeAsUTF8 :: PyObject -> IO PyObject
 
 toPyUnicode xs = withCStringLen (UTF8.encodeString xs) $ \ (p, len) ->
-                 wrapPtr =<< pyUnicodeDecodeUTF8 p (fromIntegral len)
+                 pyUnicodeDecodeUTF8 p (fromIntegral len)
 
 unicodeToString obj =
   alloca $ \ cstr_ptr ->
   withCString "s" $ \ format ->
-  withForeignPtr obj $ \ r ->
-  pyUnicodeAsUTF8 r >>= \ s ->
+  pyUnicodeAsUTF8 obj >>= \ s ->
   pyParse s format cstr_ptr >>
   pyDecRef s >>
   peek cstr_ptr >>= peekCString >>= return . UTF8.decodeString
@@ -357,8 +316,7 @@ unicodeToString obj =
 toString obj =
   alloca $ \ cstr_ptr ->
   withCString "s" $ \ format ->
-  withForeignPtr obj $ \ r ->
-  pyParse r format cstr_ptr >>
+  pyParse obj format cstr_ptr >>
   peek cstr_ptr >>= peekCString >>= return . UTF8.decodeString
 
 -------------------------------------------------------------------------------
@@ -369,12 +327,8 @@ toString obj =
 foreign import ccall "python2.5/Python.h PyTuple_GetItem"
   pyTupleGetItem :: PyObject -> CInt -> IO PyObject
 
-tupleGetItem :: PyObj -> Int -> IO PyObj
 tupleGetItem obj index =
-  withForeignPtr obj $ \ o ->
-  pyTupleGetItem o (fromIntegral index) >>= \ x ->
-  pyIncRef x >>
-  wrapPtr x
+  pyTupleGetItem obj (fromIntegral index)
 
 -------------------------------------------------------------------------------
 -- Exception Handling
@@ -403,8 +357,7 @@ foreign import ccall "python2.5/Python.h PyIter_Next"
 foreign import ccall "python-local.h py_iter_check"
   pyIterCheck :: PyObject -> IO CInt
 
-forEach_ :: PyObj -> (PyObj -> IO ()) -> IO ()
-forEach_ obj f = withForeignPtr obj check
+forEach_ obj f = check obj
   where
 
   check o = do support <- pyIterCheck o
@@ -412,10 +365,9 @@ forEach_ obj f = withForeignPtr obj check
                   else fail "Iterator protocol not supported"
 
   loop o = do x <- pyIterNext o
-              unless (x == nullPtr) (wrapPtr x >>= f >> loop o)
+              unless (x == nullPtr) (f x >> loop o)
 
-forEach :: PyObj -> (PyObj -> IO a) -> IO [a]
-forEach obj f = withForeignPtr obj check
+forEach obj f = check obj
   where
 
   check o = do support <- pyIterCheck o
@@ -424,6 +376,6 @@ forEach obj f = withForeignPtr obj check
 
   loop o = do x <- pyIterNext o
               if x == nullPtr then return []
-               else wrapPtr x >>= f >>= \ a -> loop o >>= \ as -> return (a:as)
+               else f x >>= \ a -> loop o >>= \ as -> return (a:as)
 
 
