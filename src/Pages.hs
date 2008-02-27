@@ -164,17 +164,15 @@ display_paste now view_url (paste, rendered) =
 
 skin :: String -> Html -> Html -> PageM Html
 skin title_text other_links body_html =
-  asks (style_path . page_env_conf) >>= \ stylesheet ->
+  asks (style_path . page_env_conf) >>= \ stylesheets ->
   make_url (methodURL mList Nothing Nothing) >>= \ list_url ->
   make_url (methodURL mNew Nothing Nothing) >>= \ new_url ->
   return $
 
   header
   << (thetitle << (title_text ++ " - hpaste")
-  +++ thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
-      << noHtml
-  +++ thelink ! [rel "stylesheet", thetype "text/css", href "/pygmentize.css"]
-      << noHtml
+  +++ [thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
+       << noHtml | stylesheet <- stylesheets]
   +++ meta ! [httpequiv "Content-Type", content "text/html; charset=utf-8"]
      )
 
