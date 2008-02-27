@@ -10,7 +10,7 @@
 --
 --------------------------------------------------------------------
 
-module Main where
+module Main(main) where
 
 import API
 -- import Highlight
@@ -54,6 +54,8 @@ docs     :: [String]
   , mView --> handleView
   , mRaw  --> handleRaw
   , mList --> handleList
+  , mAddAnnot --> handleAddAnnot
+  , mDelAnnot --> handleDelAnnot
   ]
 
 usage :: String
@@ -153,10 +155,12 @@ handleView pasteId =
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- exec_db $ getChildren (pasteId)
                     now <- liftIO $ getCurrentTime
-                    xs <- liftIO $ mapM highlight (x:kids)
+                    xs <- mapM highlight (x:kids)
                     outputHTML $ display_pastes now x kids xs
   where
-  highlight paste = highlightAs (paste_language paste) (paste_content paste)
+  highlight paste = do as <- exec_db $ getAnnotations $ paste_id paste
+                       liftIO $ highlightAs (paste_language paste)
+                                            (paste_content paste)
 
 handleRaw :: Int -> Action
 handleRaw pasteId =
@@ -174,6 +178,14 @@ handleList pat offset = do
     pastes <- exec_db $ getPastes pat (n+1) (offset1 * n)
     now <- liftIO $ getCurrentTime
     outputHTML $ list_page now pastes offset1
+
+handleAddAnnot :: Int -> [(String,Int)] -> Action
+handleAddAnnot pid ls = do exec_db (addAnnotations pid (map snd ls))
+                           redirectTo (methodURL mView pid)
+
+handleDelAnnot :: Int -> [(String,Int)] -> Action
+handleDelAnnot pid ls = do exec_db (delAnnotations pid (map snd ls))
+                           redirectTo (methodURL mView pid)
 
 split :: Eq a => a -> [a] -> [[a]]
 split d [] = []
@@ -195,7 +207,7 @@ outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
                   xs <- buildHTML s
                   output $ UTF8.encodeString $ filter (/='\r') $ renderHtml xs
 
-redirectTo :: URL -> CGI CGIResult
+redirectTo :: MonadCGI m => URL -> m CGIResult
 redirectTo url = do sn <- scriptName
                     redirect $ sn ++ exportURL url
 

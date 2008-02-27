@@ -9,7 +9,7 @@
 
 module Utils.RequestDispatch
          ( Context(..), Method(..), IsArg(..), Arg(..)
-         , Req, Opt, (:>)(..)
+         , Req, Opt, Many, (:>)(..)
          , (-->), runAPI, methodURL, methodURLBase) where
 
 import MonadLib

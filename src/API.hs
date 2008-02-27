@@ -21,6 +21,16 @@ mSave = Method ( (Arg "title"    :: Arg Req String)
                )
         "POST" "save" "Saves the paste"
 
+mAddAnnot = Method ( (Arg "id"    :: Arg Req Int)
+                  :> (Arg "line"  :: Arg Many Int)
+                   )
+        "POST" "add_annot" "Annotate a paste"
+
+mDelAnnot = Method ( (Arg "id"    :: Arg Req Int)
+                  :> (Arg "line"  :: Arg Many Int)
+                   )
+        "POST" "del_annot" "Remove annotations from a paste"
+
 mView = Method (Arg "id"      :: Arg Req Int)
         "GET" "view" "Displays a paste"
 

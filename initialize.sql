@@ -15,3 +15,8 @@ CREATE TABLE IF NOT EXISTS channel
   ( channelid INTEGER PRIMARY KEY
   , channelname TEXT NOT NULL UNIQUE
   );
+CREATE TABLE IF NOT EXISTS annotation
+  ( pasteid INTEGER NOT NULL
+  , line INTEGER NOT NULL
+  , PRIMARY KEY (pasteid, line)
+  );
