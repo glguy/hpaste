@@ -17,28 +17,22 @@ init_highlighter =
 
 highlight :: Int -> String -> String -> IO String
 highlight pasteid lang code = withGIL $
- do f <- fromImport "__main__" "hl"
-    r <- call3 f code lang pasteid
-    s <- getString r
-    pyDecRef r
-    pyDecRef f
-    return s
+  withObj' (fromImport "__main__" "hl") $ \ f ->
+  withObj' (call3 f code lang pasteid ) getString
 
 get_languages :: IO [(String,String)]
 get_languages = withGIL $
- do get_lexers <- fromImport "pygments.lexers" "get_all_lexers"
-    lexers <- call0 get_lexers
-    xs <- forEach lexers $ \ x ->
-     do k <- getString =<< tupleGetItem x 0
-        aliases <- tupleGetItem x 1
-        v <- getString =<< tupleGetItem aliases 0
-        pyDecRef x
-        return (k,v)
-    pyDecRef lexers
-    pyDecRef get_lexers
-    return (sortBy (comparing fst) xs)
+  withObj' (fromImport "__main__" "get_all_lexers") $ \ get_lexers ->
+  withObj' (call0 get_lexers)                       $ \ lexers     ->
+  do xs <- forEach lexers $ \ x ->
+      do k <- getString =<< tupleGetItem x 0
+         aliases <- tupleGetItem x 1
+         v <- getString =<< tupleGetItem aliases 0
+         return (k,v)
+     return $ sortBy (comparing fst) xs
 
 comparing f x y = f x `compare` f y
+
 runPythonFile name = runSimpleString =<< readFile name
 
 
@@ -54,6 +48,14 @@ runSimpleString code = withCString code pyRunSimpleString
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
+
+-- | Pointers to new references. These are reference counted.
+data PyObjectStruct1 = PyObjectStruct1
+type PyObject1 = Ptr PyObjectStruct1
+
+-- | Pointers to borrowed references. These do not need to be released.
+data PyObjectStruct = PyObjectStruct
+type PyObject = Ptr PyObjectStruct
 
 foreign import ccall "python2.5/Python.h Py_Initialize"
   pyInitialize :: IO ()
@@ -91,27 +93,23 @@ withGIL m =
 -- Accessing objects from namespaces
 -------------------------------------------------------------------------------
 
-data PyObjectStruct = PyObjectStruct
-type PyObject = Ptr PyObjectStruct
-
-foreign import ccall "python2.5/Python.h PyImport_ImportModule"
-  pyImportImportModule :: CString -> IO PyObject
+-- Borrowed Reference
+foreign import ccall "python2.5/Python.h PyImport_AddModule"
+  pyImportAddModule :: CString -> IO PyObject
 
 -- New Reference
 foreign import ccall "python2.5/Python.h PyObject_GetAttrString"
-  pyObjectGetAttrString :: PyObject -> CString -> IO PyObject
+  pyObjectGetAttrString :: PyObject -> CString -> IO PyObject1
 
-fromImport :: String -> String -> IO PyObject
+fromImport :: String -> String -> IO PyObject1
 fromImport module_name object_name =
- do mod <- importModule module_name
-    obj <- objectGetAttr mod object_name
-    pyDecRef mod
-    return obj
+ do mod <- addModule module_name
+    objectGetAttr mod object_name
 
-importModule :: String -> IO PyObject
-importModule module_name = withCString module_name pyImportImportModule
+addModule :: String -> IO PyObject
+addModule module_name = withCString module_name pyImportAddModule
 
-objectGetAttr :: PyObject -> String -> IO PyObject
+objectGetAttr :: PyObject -> String -> IO PyObject1
 objectGetAttr pmod object_name = withCString object_name $ pyObjectGetAttrString pmod
 
 -------------------------------------------------------------------------------
@@ -120,7 +118,7 @@ objectGetAttr pmod object_name = withCString object_name $ pyObjectGetAttrString
 
 -- New Reference
 foreign import ccall "python2.5/Python.h Py_BuildValue"
-  pyBuildValue1 :: CString -> Ptr a -> IO PyObject
+  pyBuildValue1 :: CString -> Ptr a -> IO PyObject1
 
 -------------------------------------------------------------------------------
 -- Calling Functions
@@ -128,16 +126,17 @@ foreign import ccall "python2.5/Python.h Py_BuildValue"
 
 -- New Reference
 foreign import ccall "python2.5/Python.h PyObject_CallFunction"
-  pyCallFunction0 :: PyObject -> CString -> IO PyObject
+  pyCallFunction0 :: PyObject -> CString -> IO PyObject1
 
 -- New Reference
 foreign import ccall "python2.5/Python.h PyObject_CallFunction"
-  pyCallFunction3 :: PyObject -> CString -> CString -> CString -> CInt -> IO PyObject
+  pyCallFunction3 :: PyObject -> CString -> CString -> CString -> CInt
+                  -> IO PyObject1
 
-call0 :: PyObject -> IO PyObject
+call0 :: PyObject -> IO PyObject1
 call0 obj = pyCallFunction0 obj nullPtr
 
-call3 :: PyObject -> String -> String -> Int -> IO PyObject
+call3 :: PyObject -> String -> String -> Int -> IO PyObject1
 call3 f a b c =
   withCString "ssi" $ \ format ->
   withCString (encodeString a)     $ \ aa     ->
@@ -150,7 +149,16 @@ call3 f a b c =
 -------------------------------------------------------------------------------
 
 foreign import ccall "python-local.h py_decref"
-  pyDecRef :: PyObject -> IO ()
+  pyDecRef :: PyObject1 -> IO ()
+
+withObj' :: IO PyObject1 -> (PyObject -> IO a) -> IO a
+withObj' obj1 f = do o <- obj1
+                     withObj o f
+
+withObj :: PyObject1 -> (PyObject -> IO a) -> IO a
+withObj obj1 f = do x <- f (castPtr obj1) -- only place the pointer is casted!
+                    pyDecRef obj1
+                    return x
 
 -------------------------------------------------------------------------------
 -- String Extraction
@@ -172,13 +180,14 @@ getString obj =
 
 -- New Reference
 foreign import ccall "python2.5/Python.h PyIter_Next"
-  pyIterNext :: PyObject -> IO PyObject
+  pyIterNext :: PyObject -> IO PyObject1
 
+forEach :: PyObject -> (PyObject -> IO a) -> IO [a]
 forEach obj f =
  do x <- pyIterNext obj
     if x == nullPtr
        then return []
-       else do a  <- f x
+       else do a  <- withObj x f
                as <- forEach obj f
                return (a:as)
 
@@ -190,4 +199,5 @@ forEach obj f =
 foreign import ccall "python2.5/Python.h PyTuple_GetItem"
   pyTupleGetItem :: PyObject -> CInt -> IO PyObject
 
+tupleGetItem :: PyObject -> Int -> IO PyObject
 tupleGetItem obj index = pyTupleGetItem obj (fromIntegral index)
