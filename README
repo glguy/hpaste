@@ -1,0 +1,18 @@
+hpaste is copyright Eric Mertens 2008 and is BSD3 licensed
+The LICENSE file should be referred to for any licensing details.
+Source code updates can be found at http://code.haskell.org/hpaste.git
+
+Getting hpaste installed and running:
+
+1) Install the python library pygments
+2) Create a new sqlite3 database using the initialize.sql file
+   This file must exist in a directory that the cgi application will
+   have write priviledges to as sqlite3 creates temp files!
+3) Create an hpaste.conf file with can be "read" as a Config object
+4) Add hpaste.fcgi to your cgi-bin and enable fastcgi support in your httpd.
+5) Add highlighter.py to your cgi-bin.
+
+The bot will expect to be able to be able to read a Config object as well
+as the fastcgi application. It will create a socket that will likely have
+the wrong permissions if the httpd and bot run as different users. The httpd
+needs +w permissions on the socket.

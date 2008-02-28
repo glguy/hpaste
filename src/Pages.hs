@@ -200,7 +200,7 @@ skin title_text other_links head_html body_html =
          +++ other_links)
      +++ thediv ! [theclass "wrapper"] << body_html
      +++ thediv ! [theclass "footer"]
-         << "hpaste 2008 - git clone http://code.haskell.org/hpaste")
+         << "hpaste 2008 - git clone http://code.haskell.org/hpaste.git")
 
 show_author :: Paste -> String
 show_author p | paste_author p == "" = "(anonymous)"
