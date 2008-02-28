@@ -6,7 +6,7 @@ import Data.Time
 import MonadLib
 
 import API
-import Python
+import Highlight
 import Config
 import Types
 import Utils.URL

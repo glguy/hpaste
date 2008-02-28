@@ -13,8 +13,7 @@
 module Main(main) where
 
 import API
--- import Highlight
-import Python hiding(main)
+import Highlight
 import Pages
 import Storage
 import Types
@@ -38,18 +37,14 @@ import System.IO
 import Text.XHtml.Strict hiding (URL)
 import MonadLib
 
-type Highlighter = Int -> String -> String -> IO String
-type PasteM = ReaderT (Highlighter, Config) (CGIT IO)
+type PasteM = ReaderT Config (CGIT IO)
 type Action = PasteM CGIResult
 
 get_conf :: PasteM Config
-get_conf = fmap snd ask
+get_conf = ask
 
-get_hl :: PasteM Highlighter
-get_hl = fmap fst ask
-
-runPasteM :: Highlighter -> Config -> PasteM a -> CGI a
-runPasteM a b = runReaderT (a,b)
+runPasteM :: Config -> PasteM a -> CGI a
+runPasteM = runReaderT
 
 handlers :: [Context -> Maybe (Either String Action)]
 docs     :: [String]
@@ -67,11 +62,7 @@ usage :: String
 usage = unlines $ intersperse "" docs
 
 main :: IO ()
-main = withPython $ do pyEvalInitThreads
-                       src <- readFile "/home/emertens/src/hpaste/src/html.py"
-                       withCString src pyRunSimpleString
-                       pyEvalReleaseLock
-                       runFastCGIConcurrent' forkIO 10 mainCGI
+main = runFastCGIConcurrent' forkIO 10 mainCGI
 
 mainCGI :: CGIT IO CGIResult
 mainCGI =
@@ -79,11 +70,11 @@ mainCGI =
     method <- requestMethod
     params <- getDecodedInputs
     conf   <- liftIO getConfig
-    hl     <- liftIO make_highlighter
+    liftIO init_highlighter
     sn     <- scriptName
     let p = drop (length sn + 1) (uriPath uri)
     let c = Context method p params
-    runPasteM hl conf $ case runAPI c handlers of
+    runPasteM conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre $ toHtml usage
       Just (Left err) -> outputHTML $ return err
       Just (Right r)  -> r
@@ -161,21 +152,20 @@ announce pasteId =
 
 handleView :: Int -> Action
 handleView pasteId =
- do highlightAs <- get_hl
-    res <- exec_db $ getPaste pasteId
+ do res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just x  -> do kids <- exec_db $ getChildren (pasteId)
-                    now <- liftIO $ getCurrentTime
-                    xs <- mapM (highlight highlightAs) (x:kids)
+      Just x  -> do kids <- exec_db $ getChildren pasteId
+                    now <- liftIO getCurrentTime
+                    xs <- mapM hl (x:kids)
                     outputHTML $ display_pastes now x kids xs
   where
-  highlight f paste = do as <- exec_db $ getAnnotations $ paste_id paste
-                         htm <- liftIO $ f (paste_id paste)
-                                           (paste_language paste)
-                                           (paste_content paste)
-                         let css = make_annot_css (paste_id paste) as
-                         return (htm,css)
+  hl paste = do as <- exec_db $ getAnnotations $ paste_id paste
+                htm <- liftIO $ highlight (paste_id paste)
+                                          (paste_language paste)
+                                          (paste_content paste)
+                let css = make_annot_css (paste_id paste) as
+                return (htm,css)
 
 make_annot_css i as =
   style ! [thetype "text/css"]

@@ -14,13 +14,6 @@ cabal-version:  >= 1.2
 flag small_base
     description: Choose the new smaller, split-up base package.
 
-executable pythontest
-    main-is:         Stub.hs
-    hs-source-dirs:  src
-    Extra-Libraries: python2.5, m
-    C-sources:       cbits/python-local.c
-    Includes:        python-local.h
-    Include-dirs:    include
 executable hpastebot
     main-is:         Bot.hs
     ghc-options:     -threaded
