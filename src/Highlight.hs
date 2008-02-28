@@ -1,29 +1,39 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Highlight (init_highlighter, highlight, get_languages) where
+module Highlight (PythonHandle(), init_highlighter, highlight,
+                  get_languages, with_python) where
 
 import Data.List (sortBy)
+import Control.Concurrent.QSem
 import Foreign
 import Foreign.C
 import Foreign.C.String
+import Control.Monad.Trans
 
 import Data.ByteString (packCStringLen, useAsCString)
 import Data.ByteString.UTF8 as UTF8
 import Codec.Binary.UTF8.String as UTF8
 
-init_highlighter :: IO ()
+newtype PythonHandle = PythonHandle QSem
+
+with_python (PythonHandle qsem) m =
+ do liftIO $ waitQSem qsem
+    x <- m
+    liftIO $ signalQSem qsem
+    return x
+
+init_highlighter :: IO PythonHandle
 init_highlighter =
  do pyInitialize
-    pyEvalInitThreads
     runPythonFile "highlighter.py"
-    pyEvalReleaseLock
+    PythonHandle `fmap` newQSem 1
 
 highlight :: Int -> String -> String -> IO String
-highlight pasteid lang code = withGIL $
+highlight pasteid lang code =
   withObj' (fromImport "__main__" "hl") $ \ f ->
   withObj' (call3 f code lang pasteid ) getString
 
 get_languages :: IO [(String,String)]
-get_languages = withGIL $
+get_languages =
   withObj' (fromImport "__main__" "get_all_lexers") $ \ get_lexers ->
   withObj' (call0 get_lexers)                       $ \ lexers     ->
   do xs <- forEach lexers $ \ x ->
