@@ -26,6 +26,8 @@ import Codec.Binary.UTF8.String as UTF8
 import Control.Concurrent
 import Control.Exception
 import Data.List
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IntMap
 import Data.Time.Clock
 import Foreign.C.String
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
@@ -66,16 +68,17 @@ usage :: String
 usage = unlines $ intersperse "" docs
 
 main :: IO ()
-main = runFastCGIConcurrent' forkIO 10 mainCGI
+main =
+ do pyh <- liftIO init_highlighter
+    runFastCGIConcurrent' forkIO 10 (mainCGI pyh)
 
-mainCGI :: CGIT IO CGIResult
-mainCGI =
+mainCGI :: PythonHandle -> CGIT IO CGIResult
+mainCGI pyh =
  do uri    <- requestURI
     method <- requestMethod
     params <- getDecodedInputs
     sn     <- scriptName
     conf   <- liftIO getConfig
-    pyh    <- liftIO init_highlighter
     let p = drop (length sn + 1) (uriPath uri)
         c = Context method p params
     runPasteM pyh conf $ case runAPI c handlers of
@@ -172,9 +175,9 @@ handleView pasteId =
   where
   hl paste = do as <- exec_db $ getAnnotations $ paste_id paste
                 htm <- exec_python $
-                       liftIO $ highlight (paste_id paste)
-                                          (paste_language paste)
-                                          (paste_content paste)
+                             liftIO $ highlight (paste_id paste)
+                                                (paste_language paste)
+                                                (paste_content paste)
                 return (htm,as)
 
 -- | Display a plain-text version of the paste. This is useful for downloading
