@@ -28,7 +28,7 @@ make_url url = do b <- asks page_env_baseurl
 
 error_page :: [Html] -> PageM Html
 error_page errors =
-  skin "Validation problem" noHtml $
+  skin "Validation problem" noHtml noHtml $
   h2 << "Paste validation failed"
   +++
   ordList errors
@@ -41,7 +41,7 @@ list_page now pastes offset =
   asks (pastes_per_page . page_env_conf) >>= \ n ->
   make_url (methodURL mList Nothing (Just (offset + 1))) >>= \ earlier_url ->
   make_url (methodURL mList Nothing (Just (offset - 1))) >>= \ later_url ->
-  skin "Recent Pastes" noHtml $ html_result urls n earlier_url later_url
+  skin "Recent Pastes" noHtml noHtml $ html_result urls n earlier_url later_url
 
   where
   html_result urls n earlier_url later_url =
@@ -81,7 +81,7 @@ list_page now pastes offset =
 
 edit_paste_form :: [String] -> Maybe Int -> String -> String -> [(String,String)] -> PageM Html
 edit_paste_form chans mb_pasteId language starting_text langs =
-  skin page_title noHtml $
+  skin page_title noHtml noHtml $
   h2 ! [theclass "newheader"] << page_title
  +++
   form ! [action "save", method "post"]
@@ -129,13 +129,26 @@ edit_paste_form chans mb_pasteId language starting_text langs =
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
-display_pastes :: UTCTime -> Paste -> [Paste] -> [String] -> PageM Html
+display_pastes :: UTCTime -> Paste -> [Paste] -> [(String,Html)] -> PageM Html
 display_pastes now x xs cs =
-  make_url (methodURL mNew (Just (paste_id x)) Nothing) >>= \ new_url ->
-  make_url (methodURL mView (paste_id x)) >>= \ view_url ->
-  skin ("Viewing " ++ show_title x) (anchor ! [href new_url] << "add revision")
-  . toHtml =<< mapM (display_paste now view_url) (zip (x:xs) cs)
+ do new_url  <- make_url (methodURL mNew (Just (paste_id x)) Nothing)
+    view_url <- make_url (methodURL mView (paste_id x))
+    content  <- concatHtml `fmap` mapM (display_paste now view_url) (zip (x:xs) (map fst cs))
+    skin the_title (other_links new_url) head_html content
   where
+  the_title   = ("Viewing " ++ show_title x)
+
+  other_links new_url = anchor ! [href new_url] << "add revision"
+
+  head_html   = map snd cs +++ script ! [thetype "text/javascript"] << js_text
+
+  js_text = primHtml $ unlines [ "function toghl(obj,p,n) { "
+                    , " try { xhr = new ActiveXObject(\"Microsoft.XMLHTTP\"); } "
+                    , " catch(e) { xhr = new XMLHttpRequest() } "
+                    , " xhr.open('POST', \"add_annot?id=\"+p+\"&line.0=\"+n, true);"
+                    , " xhr.send(null);"
+                    , "}"
+                    ]
 
 display_paste :: UTCTime -> String -> (Paste, String) -> PageM Html
 display_paste now view_url (paste, rendered) =
@@ -155,15 +168,23 @@ display_paste now view_url (paste, rendered) =
       +++ make_label "language" (show_language paste)
          ))
   +++ thediv ! [theclass "clearer"] << noHtml
-  +++ thediv ! [theclass "contentbox"] << primHtml rendered
+  +++ thediv ! [theclass $ "contentbox p-" ++ show (paste_id paste) ] << primHtml rendered
+  +++ form ! [method "POST", action "add_annot"]
+      << (hidden "id" (show (paste_id paste))
+      +++ textfield "line.0" ! [width "3"]
+      +++ submit "add" "Add highlight")
+  +++ form ! [method "POST", action "del_annot"]
+      << (hidden "id" (show (paste_id paste))
+      +++ textfield "line.0" ! [width "3"]
+      +++ submit "submit" "Remove highlight")
 
   where
   make_label k v = thespan ! [theclass "labelitem"]
                    << (thespan ! [theclass "labelkey"] << k
                    +++ thespan ! [theclass "labelvalue"] << v)
 
-skin :: String -> Html -> Html -> PageM Html
-skin title_text other_links body_html =
+skin :: String -> Html -> Html -> Html -> PageM Html
+skin title_text other_links head_html body_html =
   asks (style_path . page_env_conf) >>= \ stylesheets ->
   make_url (methodURL mList Nothing Nothing) >>= \ list_url ->
   make_url (methodURL mNew Nothing Nothing) >>= \ new_url ->
@@ -174,6 +195,7 @@ skin title_text other_links body_html =
   +++ [thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
        << noHtml | stylesheet <- stylesheets]
   +++ meta ! [httpequiv "Content-Type", content "text/html; charset=utf-8"]
+  +++ head_html
      )
 
   +++

@@ -157,21 +157,35 @@ fromImport mod klass =
 -- lexer = get_lexer_by_name("python", stripall=True)
 -- formatter = HtmlFormatter(linenos=True, cssclass="source")
 -- result = highlight(code, lexer, formatter)
+--
 
-make_highlighter :: IO (String -> String -> IO String)
+make_highlighter :: IO (Int -> String -> String -> IO String)
+make_highlighter = return $ \ pasteid lang code -> withGIL $
+  do f <- fromImport "__main__" "hl"
+     r <- call3 f code lang (show pasteid)
+     unicodeToString r
+
+{-
+make_highlighter :: IO (Int -> String -> String -> IO String)
 make_highlighter = withGIL $
  do t <- pyReturnTrue
     get_lexer <- fromImport "pygments.lexers" "get_lexer_by_name"
-    formatter_class <- fromImport "pygments.formatters" "HtmlFormatter"
-    formatter <- call0withKeywords formatter_class [("linenos", t)]
+    -- formatter_class <- fromImport "pygments.formatters" "HtmlFormatter"
+    formatter_class <- fromImport "__main__" "HtmlLineFormatter"
+    line_anchor_str <- withCString "s" $ \ form -> withCString "li" $ pyBuildValue1 form
+    formatter <- call0withKeywords formatter_class [("linenos", t),("lineanchors",line_anchor_str)]
+    pyDecRef line_anchor_str
     pyDecRef formatter_class
     highlight <- fromImport "pygments" "highlight"
     let lexer_dict = [("stripall",t)]
-    return $ \ lang code -> withGIL $
-      do lexer <- call1withKeywords get_lexer lang lexer_dict
+    return $ \ pasteid lang code -> withGIL $
+      do p <- withCString "s" $ \ format -> withCString (show pasteid) (pyBuildValue1 format)
+         lexer <- call1withKeywords get_lexer lang (("pasteid",p):lexer_dict)
+         pyDecRef p
          if isNull lexer
            then return "no lexer"
            else unicodeToString =<< call3 highlight code lexer formatter
+-}
 
 get_languages :: IO [(String,String)]
 get_languages = withGIL $
@@ -184,8 +198,8 @@ get_languages = withGIL $
 withPython m = bracket_ pyInitialize pyFinalize m
 
 main = withPython $ do highlightAs <- make_highlighter
-                       highlightAs "haskell" "sdfasdf"
-                       highlightAs "skell" "asdf"
+                       highlightAs 1 "haskell" "sdfasdf"
+                       highlightAs 2 "skell" "asdf"
 -------------------------------------------------------------------------------
 -- Function Calling
 -------------------------------------------------------------------------------
@@ -267,7 +281,7 @@ instance PyArg PyObject where
   format_char _ = 'O'
   apply_arg a f = f a
 
-instance PyArg CInt where
+instance PyArg Int where
   format_char _ = 'i'
   apply_arg a f = f (wordPtrToPtr (fromIntegral a))
 

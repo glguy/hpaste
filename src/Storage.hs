@@ -92,7 +92,7 @@ getAnnotations pasteId = with_db
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
 delAnnotations pid [] = with_db
-  ( "DELETE FROM annotation WHERE pastedid = ?"
+  ( "DELETE FROM annotation WHERE pasteid = ?"
   , [bindP pid]
   , Handler try_exec_dml
   )
@@ -100,7 +100,7 @@ delAnnotations pid [] = with_db
 delAnnotations pid ls = with_statement query $
   StmtH (\s -> mapM_ (\args -> withBoundStatement s args try_exec_dml) binds)
   where
-  query = "DELETE FROM annotation WHERE pastedid = ? AND line = ?"
+  query = "DELETE FROM annotation WHERE pasteid = ? AND line = ?"
   binds = [ [bindP pid,bindP l] | l <- ls ]
 
 

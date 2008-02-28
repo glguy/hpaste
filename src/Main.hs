@@ -28,6 +28,7 @@ import Control.Concurrent
 import Control.Exception
 import Data.List
 import Data.Time.Clock
+import Foreign.C.String
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
 import Network.URI
@@ -37,15 +38,17 @@ import System.IO
 import Text.XHtml.Strict hiding (URL)
 import MonadLib
 
-type PasteM = ReaderT (String -> String -> IO String, Config) (CGIT IO)
+type Highlighter = Int -> String -> String -> IO String
+type PasteM = ReaderT (Highlighter, Config) (CGIT IO)
 type Action = PasteM CGIResult
 
 get_conf :: PasteM Config
 get_conf = fmap snd ask
 
+get_hl :: PasteM Highlighter
 get_hl = fmap fst ask
 
-runPasteM :: (String -> String -> IO String) -> Config -> PasteM a -> CGI a
+runPasteM :: Highlighter -> Config -> PasteM a -> CGI a
 runPasteM a b = runReaderT (a,b)
 
 handlers :: [Context -> Maybe (Either String Action)]
@@ -64,8 +67,11 @@ usage :: String
 usage = unlines $ intersperse "" docs
 
 main :: IO ()
-main = withPython $ pyEvalInitThreads >> pyEvalReleaseLock >>
-                    runFastCGIConcurrent' forkIO 10 mainCGI
+main = withPython $ do pyEvalInitThreads
+                       src <- readFile "/home/emertens/src/hpaste/src/html.py"
+                       withCString src pyRunSimpleString
+                       pyEvalReleaseLock
+                       runFastCGIConcurrent' forkIO 10 mainCGI
 
 mainCGI :: CGIT IO CGIResult
 mainCGI =
@@ -74,8 +80,9 @@ mainCGI =
     params <- getDecodedInputs
     conf   <- liftIO getConfig
     hl     <- liftIO make_highlighter
-    let p = uriPath uri
-    let c = Context method (reverse $ takeWhile (/= '/') $ reverse p) params
+    sn     <- scriptName
+    let p = drop (length sn + 1) (uriPath uri)
+    let c = Context method p params
     runPasteM hl conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre $ toHtml usage
       Just (Left err) -> outputHTML $ return err
@@ -142,7 +149,7 @@ handleSave title author content language channel mb_parent save preview =
   mbPasteId <- exec_db $ writePaste paste
   log_on_error mbPasteId $ \ pasteId -> do
     unless (null channel1) $ announce pasteId
-    handleView (fromMaybe pasteId mb_parent1)
+    redirectTo $ methodURL mView $ fromMaybe pasteId mb_parent1
 
 announce :: Int -> PasteM ()
 announce pasteId =
@@ -164,8 +171,17 @@ handleView pasteId =
                     outputHTML $ display_pastes now x kids xs
   where
   highlight f paste = do as <- exec_db $ getAnnotations $ paste_id paste
-                         liftIO $ f (paste_language paste)
-                                    (paste_content paste)
+                         htm <- liftIO $ f (paste_id paste)
+                                           (paste_language paste)
+                                           (paste_content paste)
+                         let css = make_annot_css (paste_id paste) as
+                         return (htm,css)
+
+make_annot_css i as =
+  style ! [thetype "text/css"]
+  << primHtml (concatMap mk_line as)
+  where
+  mk_line a = ".p-" ++ show i ++ " .li-" ++ show a ++ " { background-color: yellow; } \n"
 
 handleRaw :: Int -> Action
 handleRaw pasteId =
@@ -214,6 +230,7 @@ outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
 
 redirectTo :: MonadCGI m => URL -> m CGIResult
 redirectTo url = do sn <- scriptName
+                    setStatus 303 "See Other"
                     redirect $ sn ++ exportURL url
 
 log_on_error :: Either String a -> (a -> Action) -> Action
