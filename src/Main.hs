@@ -1,10 +1,10 @@
 --------------------------------------------------------------------
 -- |
--- Module    : hpaste
--- Copyright : (c) PDX Hackers, Inc. 2008
+-- Module    : Main
+-- Copyright : (c) Eric Mertens
 -- License   : BSD3
 --
--- Maintainer: Don Stewart <dons@galois.com>
+-- Maintainer: Eric Mertens <emertens@gmail.com>
 -- Stability : provisional
 -- Portability:
 --
@@ -69,20 +69,21 @@ mainCGI =
  do uri    <- requestURI
     method <- requestMethod
     params <- getDecodedInputs
+    sn     <- scriptName
     conf   <- liftIO getConfig
     liftIO init_highlighter
-    sn     <- scriptName
     let p = drop (length sn + 1) (uriPath uri)
-    let c = Context method p params
+        c = Context method p params
     runPasteM conf $ case runAPI c handlers of
-      Nothing         -> outputHTML $ return $ pre $ toHtml usage
-      Just (Left err) -> outputHTML $ return err
+      Nothing         -> outputHTML $ return $ pre << usage
+      Just (Left err) -> outputHTML $ return $ pre << err
       Just (Right r)  -> r
   `catchCGI` outputException
 
 
 
-
+-- | Handler for the edit form. This form is used for both new pastes
+--   and revisions of existing ones.
 handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
  do chans <- exec_db getChannels
@@ -103,6 +104,8 @@ handleNew mb_pasteId edit =
                Just r | isNothing edit -> Right ("", paste_language r)
                       | otherwise -> Right $ (paste_content r,paste_language r)
 
+-- | Handle saving of new pastes and revisions
+--   XXX: Preview not supported yet
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> Action
 handleSave title author content language channel mb_parent save preview =
@@ -142,6 +145,8 @@ handleSave title author content language channel mb_parent save preview =
     unless (null channel1) $ announce pasteId
     redirectTo $ methodURL mView $ fromMaybe pasteId mb_parent1
 
+-- | Write the id of a newly created paste to the socket to communicate to
+--   the bot
 announce :: Int -> PasteM ()
 announce pasteId =
  do sockname <- announce_socket `fmap` get_conf
@@ -150,6 +155,7 @@ announce pasteId =
                  hPutStrLn h $ show pasteId
                  ) `catch` \ _ -> return ()
 
+-- | Handle the viewing of existing pastes.
 handleView :: Int -> Action
 handleView pasteId =
  do res <- exec_db $ getPaste pasteId
@@ -166,6 +172,8 @@ handleView pasteId =
                                           (paste_content paste)
                 return (htm,as)
 
+-- | Display a plain-text version of the paste. This is useful for downloading
+--   the code.
 handleRaw :: Int -> Action
 handleRaw pasteId =
  do res <- exec_db $ getPaste pasteId
@@ -175,6 +183,8 @@ handleRaw pasteId =
                     output $ UTF8.encodeString $ paste_content x
 
 
+-- | Display the most recent pastes. The number of pastes to display is set
+--   in the configuration file.
 handleList :: Maybe String -> Maybe Int -> Action
 handleList pat offset = do
     let offset1 = max 0 $ fromMaybe 0 offset
@@ -183,48 +193,62 @@ handleList pat offset = do
     now <- liftIO $ getCurrentTime
     outputHTML $ list_page now pastes offset1
 
+-- | Mark lines in a paste to be highlighted
 handleAddAnnot :: Int -> [(String,Int)] -> Action
 handleAddAnnot pid ls = do exec_db (addAnnotations pid (map snd ls))
                            redirectTo (methodURL mView pid)
 
+-- | Unmark lines in a paste to be highlighted
 handleDelAnnot :: Int -> [(String,Int)] -> Action
 handleDelAnnot pid ls = do exec_db (delAnnotations pid (map snd ls))
                            redirectTo (methodURL mView pid)
 
+-- | Split a list of elements by some delimiter
 split :: Eq a => a -> [a] -> [[a]]
 split d [] = []
 split d xs = case break (==d) xs of
                (a, []) -> [a]
                (a, _:b) -> a : split d b
 
+-- | Lift a PageM computation into the PasteM monad. This loads values from
+--   the CGI state into the PageM environment
 buildHTML :: PageM a -> PasteM a
 buildHTML m      = do sn <- scriptName
                       conf <- get_conf
                       return $ runPageM conf sn m
 
+-- | Lift a StoreM computation into the PasteM monad.
 exec_db :: StoreM a -> PasteM a
 exec_db m = do path <- db_path `fmap` get_conf
                liftIO (runStoreM path m)
 
+-- | Lift a PageM computation into the PasteM monad and output the result.
 outputHTML :: HTML a => PageM a -> PasteM CGIResult
 outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
                   xs <- buildHTML s
                   output $ UTF8.encodeString $ filter (/='\r') $ renderHtml xs
 
+-- | Redirect the user to a URL using 303 See Other
 redirectTo :: MonadCGI m => URL -> m CGIResult
 redirectTo url = do sn <- scriptName
                     setStatus 303 "See Other"
                     redirect $ sn ++ exportURL url
 
+-- | Given a value that could contain an error message, either report an
+--   500 Internal Server Error or pass the result to the continuation.
 log_on_error :: Either String a -> (a -> Action) -> Action
 log_on_error (Right x) f = f x
 log_on_error (Left  e) _ = outputInternalServerError [e]
 
+-- | Ensure that a parameter is not left blank. Return Just error_message
+--   when the parameter is blank.
 blank_check :: String -> [a] -> Maybe Html
 blank_check field_name xs
   | null xs   = Just $ emphasize << field_name +++ " is a required field."
   | otherwise = Nothing
 
+-- | Ensure that a parameter is not longer than a maximum. Return
+--   Just error_message when the parameter is too long.
 length_check :: String -> Int -> [a] -> Maybe Html
 length_check field_name n xs
   | length xs > n = Just $ emphasize << field_name
@@ -232,10 +256,13 @@ length_check field_name n xs
                       +++ strong << show n +++ " chacters."
   | otherwise     = Nothing
 
+-- | Ensure that a parameter is a member of the given list.
+--   Just error_message when the parameter is not a member.
 member_check :: Eq a => String -> a -> [a] -> Maybe Html
 member_check field_name x xs
   | x `elem` xs = Nothing
   | otherwise   = Just $ emphasize << field_name +++ " is not valid."
 
+-- | Decode the UTF-8 bytes from the CGI inputs
 getDecodedInputs = map decoder `fmap` getInputs
   where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
