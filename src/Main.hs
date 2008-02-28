@@ -87,7 +87,7 @@ handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
  do chans <- exec_db getChannels
     mb_text <- get_previous
-    langs <- liftIO $ get_languages
+    langs <- liftIO get_languages
     log_on_error mb_text $ \ (text, language) ->
       outputHTML $ edit_paste_form chans mb_pasteId language text langs
   where
@@ -164,14 +164,7 @@ handleView pasteId =
                 htm <- liftIO $ highlight (paste_id paste)
                                           (paste_language paste)
                                           (paste_content paste)
-                let css = make_annot_css (paste_id paste) as
-                return (htm,css)
-
-make_annot_css i as =
-  style ! [thetype "text/css"]
-  << primHtml (concatMap mk_line as)
-  where
-  mk_line a = ".p-" ++ show i ++ " .li-" ++ show a ++ " { background-color: yellow; } \n"
+                return (htm,as)
 
 handleRaw :: Int -> Action
 handleRaw pasteId =

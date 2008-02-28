@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 module Highlight (init_highlighter, highlight, get_languages) where
 
+import Data.List (sortBy)
 import Foreign
 import Foreign.C
 import Foreign.C.String
@@ -25,13 +26,19 @@ highlight pasteid lang code = withGIL $
 
 get_languages :: IO [(String,String)]
 get_languages = withGIL $
- do lexers <- call0 =<< fromImport "pygments.lexers" "get_all_lexers"
-    forEach lexers $ \ x ->
+ do get_lexers <- fromImport "pygments.lexers" "get_all_lexers"
+    lexers <- call0 get_lexers
+    xs <- forEach lexers $ \ x ->
      do k <- getString =<< tupleGetItem x 0
         aliases <- tupleGetItem x 1
         v <- getString =<< tupleGetItem aliases 0
+        pyDecRef x
         return (k,v)
+    pyDecRef lexers
+    pyDecRef get_lexers
+    return (sortBy (comparing fst) xs)
 
+comparing f x y = f x `compare` f y
 runPythonFile name = runSimpleString =<< readFile name
 
 
@@ -120,11 +127,11 @@ foreign import ccall "python2.5/Python.h Py_BuildValue"
 -------------------------------------------------------------------------------
 
 -- New Reference
-foreign import ccall "python2.5/Python.h PyEval_CallFunction"
+foreign import ccall "python2.5/Python.h PyObject_CallFunction"
   pyCallFunction0 :: PyObject -> CString -> IO PyObject
 
 -- New Reference
-foreign import ccall "python2.5/Python.h PyEval_CallFunction"
+foreign import ccall "python2.5/Python.h PyObject_CallFunction"
   pyCallFunction3 :: PyObject -> CString -> CString -> CString -> CInt -> IO PyObject
 
 call0 :: PyObject -> IO PyObject
@@ -132,7 +139,7 @@ call0 obj = pyCallFunction0 obj nullPtr
 
 call3 :: PyObject -> String -> String -> Int -> IO PyObject
 call3 f a b c =
-  withCString "(ssi)" $ \ format ->
+  withCString "ssi" $ \ format ->
   withCString (encodeString a)     $ \ aa     ->
   withCString (encodeString b)     $ \ bb     ->
   let cc = fromIntegral c      in

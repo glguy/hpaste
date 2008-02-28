@@ -129,26 +129,21 @@ edit_paste_form chans mb_pasteId language starting_text langs =
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
-display_pastes :: UTCTime -> Paste -> [Paste] -> [(String,Html)] -> PageM Html
+display_pastes :: UTCTime -> Paste -> [Paste] -> [(String,[Int])] -> PageM Html
 display_pastes now x xs cs =
  do new_url  <- make_url (methodURL mNew (Just (paste_id x)) Nothing)
     view_url <- make_url (methodURL mView (paste_id x))
-    content  <- concatHtml `fmap` mapM (display_paste now view_url) (zip (x:xs) (map fst cs))
-    skin the_title (other_links new_url) head_html content
+    content  <- mapM (display_paste now view_url) (zip (x:xs) (map fst cs))
+    skin the_title (other_links new_url) css (toHtml content)
   where
   the_title   = ("Viewing " ++ show_title x)
 
   other_links new_url = anchor ! [href new_url] << "add revision"
 
-  head_html   = map snd cs +++ script ! [thetype "text/javascript"] << js_text
-
-  js_text = primHtml $ unlines [ "function toghl(obj,p,n) { "
-                    , " try { xhr = new ActiveXObject(\"Microsoft.XMLHTTP\"); } "
-                    , " catch(e) { xhr = new XMLHttpRequest() } "
-                    , " xhr.open('POST', \"add_annot?id=\"+p+\"&line.0=\"+n, true);"
-                    , " xhr.send(null);"
-                    , "}"
-                    ]
+  css  = style ! [thetype "text/css"] << primHtml css1
+  css1 = do (p, as) <- zip (x:xs) (map snd cs)
+            a <- as
+            concat ["#li-", show (paste_id p), "-", show a, " { background-color: yellow; }\n"]
 
 display_paste :: UTCTime -> String -> (Paste, String) -> PageM Html
 display_paste now view_url (paste, rendered) =
