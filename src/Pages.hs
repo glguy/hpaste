@@ -52,7 +52,7 @@ list_page now pastes offset =
            << (td << show_author p
            +++ td << anchor ! [href view_url] << show_title p
            +++ td << show_ago now p
-           +++ td << show_language p
+           +++ td << paste_language p
            +++ td << paste_channel p
               )
           | (p,view_url) <- zip pastes1 urls]
@@ -143,7 +143,8 @@ display_pastes now x xs cs =
   css  = style ! [thetype "text/css"] << primHtml css1
   css1 = do (p, as) <- zip (x:xs) (map snd cs)
             a <- as
-            concat ["#li-", show (paste_id p), "-", show a, " { background-color: yellow; }\n"]
+            concat ["#li-", show (paste_id p), "-", show a,
+                    " { background-color: yellow; }\n"]
 
 display_paste :: UTCTime -> String -> (Paste, String) -> PageM Html
 display_paste now view_url (paste, rendered) =
@@ -160,17 +161,17 @@ display_paste now view_url (paste, rendered) =
   +++ thediv ! [theclass "labels"]
       << (make_label "author" (paste_author paste)
       +++ make_label "age" (show_ago now paste)
-      +++ make_label "language" (show_language paste)
+      +++ make_label "language" (paste_language paste)
          ))
   +++ thediv ! [theclass "clearer"] << noHtml
-  +++ thediv ! [theclass $ "contentbox p-" ++ show (paste_id paste) ] << primHtml rendered
+  +++ thediv ! [theclass "contentbox"] << primHtml rendered
   +++ form ! [method "POST", action "add_annot"]
       << (hidden "id" (show (paste_id paste))
-      +++ textfield "line.0" ! [width "3"]
+      +++ textfield "line.0"
       +++ submit "add" "Add highlight")
   +++ form ! [method "POST", action "del_annot"]
       << (hidden "id" (show (paste_id paste))
-      +++ textfield "line.0" ! [width "3"]
+      +++ textfield "line.0"
       +++ submit "submit" "Remove highlight")
 
   where
@@ -180,34 +181,26 @@ display_paste now view_url (paste, rendered) =
 
 skin :: String -> Html -> Html -> Html -> PageM Html
 skin title_text other_links head_html body_html =
-  asks (style_path . page_env_conf) >>= \ stylesheets ->
-  make_url (methodURL mList Nothing Nothing) >>= \ list_url ->
-  make_url (methodURL mNew Nothing Nothing) >>= \ new_url ->
-  return $
-
-  header
-  << (thetitle << (title_text ++ " - hpaste")
-  +++ [thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
-       << noHtml | stylesheet <- stylesheets]
-  +++ meta ! [httpequiv "Content-Type", content "text/html; charset=utf-8"]
-  +++ head_html
-     )
-
-  +++
-  body
-  << (h1 << anchor ! [href list_url] << "hpastetwo"
-  +++ thediv ! [theclass "toplinks"]
-      << (anchor ! [href list_url] << "recent"
-      +++ anchor ! [href new_url] << "new"
-      +++ other_links
-         )
-  +++ thediv ! [theclass "wrapper"] << body_html
-  +++ thediv ! [theclass "footer"]
-      << "hpaste 2008 - haskell-based web devel"
-     )
-
-show_id :: Paste -> String
-show_id p     = show $ paste_id p
+ do stylesheets <- asks (style_path . page_env_conf)
+    list_url    <- make_url (methodURL mList Nothing Nothing)
+    new_url     <- make_url (methodURL mNew Nothing Nothing)
+    return $
+     header
+     << (thetitle << (title_text ++ " - hpaste")
+     +++ [thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
+          << noHtml | stylesheet <- stylesheets]
+     +++ meta ! [httpequiv "Content-Type", content "text/html; charset=utf-8"]
+     +++ head_html)
+     +++
+     body
+     << (h1 << anchor ! [href list_url] << "hpastetwo"
+     +++ thediv ! [theclass "toplinks"]
+         << (anchor ! [href list_url] << "recent"
+         +++ anchor ! [href new_url] << "new"
+         +++ other_links)
+     +++ thediv ! [theclass "wrapper"] << body_html
+     +++ thediv ! [theclass "footer"]
+         << "hpaste 2008 - git clone http://code.haskell.org/hpaste")
 
 show_author :: Paste -> String
 show_author p | paste_author p == "" = "(anonymous)"
@@ -216,10 +209,6 @@ show_author p | paste_author p == "" = "(anonymous)"
 show_title :: Paste -> String
 show_title p | paste_title p == "" = "(untitled)"
              | otherwise           = paste_title p
-
-show_language :: Paste -> String
-show_language p | paste_language p == "" = "Plain"
-                | otherwise              = paste_language p
 
 show_ago :: UTCTime -> Paste -> String
 show_ago now paste = helper (paste_timestamp paste)

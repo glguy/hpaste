@@ -1,6 +1,7 @@
 from pygments            import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers     import get_lexer_by_name
+from pygments.util       import ClassNotFound
 
 class HtmlLineFormatter(HtmlFormatter):
 
@@ -21,6 +22,9 @@ class HtmlLineFormatter(HtmlFormatter):
             yield i, t
 
 def hl(code,lang,p):
-    lexer = get_lexer_by_name(lang,encoding='utf8')
+    try:
+        lexer = get_lexer_by_name(lang,encoding='utf8')
+    except ClassNotFound:
+        lexer = get_lexer_by_name('text',encoding='utf8')
     formatter = HtmlLineFormatter(pasteid=p,linenos=True,encoding='utf8')
     return highlight(code,lexer,formatter)
