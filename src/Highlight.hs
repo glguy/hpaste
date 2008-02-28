@@ -6,7 +6,9 @@ import Foreign
 import Foreign.C
 import Foreign.C.String
 
-import Codec.Binary.UTF8.String
+import Data.ByteString (packCStringLen, useAsCString)
+import Data.ByteString.UTF8 as UTF8
+import Codec.Binary.UTF8.String as UTF8
 
 init_highlighter :: IO ()
 init_highlighter =
@@ -139,8 +141,8 @@ call0 obj = pyCallFunction0 obj nullPtr
 call3 :: PyObject -> String -> String -> Int -> IO PyObject1
 call3 f a b c =
   withCString "ssi" $ \ format ->
-  withCString (encodeString a)     $ \ aa     ->
-  withCString (encodeString b)     $ \ bb     ->
+  useAsCString (UTF8.fromString a) $ \ aa     ->
+  useAsCString (UTF8.fromString b) $ \ bb     ->
   let cc = fromIntegral c      in
   pyCallFunction3 f format aa bb cc
 
@@ -164,15 +166,17 @@ withObj obj1 f = do x <- f (castPtr obj1) -- only place the pointer is casted!
 -- String Extraction
 -------------------------------------------------------------------------------
 
-foreign import ccall "python2.5/Python.h PyArg_Parse"
-  pyArgParse :: PyObject -> CString -> Ptr CString -> IO CInt
+foreign import ccall "python2.5/Python.h PyString_AsStringAndSize"
+  pyStringAsStringAndSize :: PyObject -> Ptr CString -> Ptr CInt -> IO CInt
 
 getString :: PyObject -> IO String
 getString obj =
-  withCString "s" $ \ format   ->
-  alloca          $ \ cstr_ptr ->
-  pyArgParse obj format cstr_ptr >>
-  peek cstr_ptr >>= fmap decodeString . peekCString
+  alloca $ \ cstr_ptr ->
+  alloca $ \ len_ptr ->
+  do pyStringAsStringAndSize obj cstr_ptr len_ptr
+     cstr <- peek cstr_ptr
+     len  <- peek len_ptr
+     UTF8.toString `fmap` packCStringLen (cstr,fromIntegral len)
 
 -------------------------------------------------------------------------------
 -- Iterator Protocol
