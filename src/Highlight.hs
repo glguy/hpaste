@@ -2,30 +2,29 @@
 module Highlight (PythonHandle(), init_highlighter, highlight,
                   get_languages, with_python) where
 
+import Control.Concurrent.MVar
+import Control.Monad.Trans
 import Data.List (sortBy)
-import Control.Concurrent.QSem
 import Foreign
 import Foreign.C
 import Foreign.C.String
-import Control.Monad.Trans
 
 import Data.ByteString (packCStringLen, useAsCString)
 import Data.ByteString.UTF8 as UTF8
-import Codec.Binary.UTF8.String as UTF8
 
-newtype PythonHandle = PythonHandle QSem
+newtype PythonHandle = PythonHandle (MVar ())
 
 with_python (PythonHandle qsem) m =
- do liftIO $ waitQSem qsem
+ do liftIO $ takeMVar qsem
     x <- m
-    liftIO $ signalQSem qsem
+    liftIO $ putMVar qsem ()
     return x
 
 init_highlighter :: IO PythonHandle
 init_highlighter =
  do pyInitialize
     runPythonFile "highlighter.py"
-    PythonHandle `fmap` newQSem 1
+    PythonHandle `fmap` newMVar ()
 
 highlight :: Int -> String -> String -> IO String
 highlight pasteid lang code =
