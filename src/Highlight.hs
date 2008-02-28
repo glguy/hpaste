@@ -5,6 +5,8 @@ import Foreign
 import Foreign.C
 import Foreign.C.String
 
+import Codec.Binary.UTF8.String
+
 init_highlighter :: IO ()
 init_highlighter =
  do pyInitialize
@@ -131,8 +133,8 @@ call0 obj = pyCallFunction0 obj nullPtr
 call3 :: PyObject -> String -> String -> Int -> IO PyObject
 call3 f a b c =
   withCString "(ssi)" $ \ format ->
-  withCString a     $ \ aa     ->
-  withCString b     $ \ bb     ->
+  withCString (encodeString a)     $ \ aa     ->
+  withCString (encodeString b)     $ \ bb     ->
   let cc = fromIntegral c      in
   pyCallFunction3 f format aa bb cc
 
@@ -155,7 +157,7 @@ getString obj =
   withCString "s" $ \ format   ->
   alloca          $ \ cstr_ptr ->
   pyArgParse obj format cstr_ptr >>
-  peek cstr_ptr >>= peekCString
+  peek cstr_ptr >>= fmap decodeString . peekCString
 
 -------------------------------------------------------------------------------
 -- Iterator Protocol

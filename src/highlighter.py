@@ -21,6 +21,6 @@ class HtmlLineFormatter(HtmlFormatter):
             yield i, t
 
 def hl(code,lang,p):
-    lexer = get_lexer_by_name(lang)
-    formatter = HtmlLineFormatter(pasteid=p,linenos=True)
+    lexer = get_lexer_by_name(lang,encoding='utf8')
+    formatter = HtmlLineFormatter(pasteid=p,linenos=True,encoding='utf8')
     return highlight(code,lexer,formatter)
