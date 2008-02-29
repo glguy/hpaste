@@ -233,7 +233,7 @@ exec_db m = do path <- db_path `fmap` get_conf
 outputHTML :: HTML a => PageM a -> PasteM CGIResult
 outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
                   xs <- buildHTML s
-                  output $ UTF8.encodeString $ filter (/='\r') $ renderHtml xs
+                  output $ UTF8.encodeString $ showHtml xs
 
 -- | Redirect the user to a URL using 303 See Other
 redirectTo :: MonadCGI m => URL -> m CGIResult
