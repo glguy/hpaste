@@ -27,10 +27,8 @@ module Storage
 
 import Types
 import Utils.Misc(parse_time)
-import Control.Monad.Trans (liftIO)
 
 import MonadLib
-
 import Database.HDBC.Sqlite3
 import Database.HDBC
 
@@ -67,6 +65,14 @@ execMany query paramss = with_db $ \ c ->
     commit c
 
 run' a b = with_db $ \ db -> run db a b >> commit db
+
+last_row_id :: IConnection c => c -> IO Int
+last_row_id db =
+  do stmt <- prepare db "select last_insert_rowid()"
+     execute stmt []
+     Just [i] <- fetchRow stmt
+     return (fromSql i)
+
 
 
 
@@ -121,11 +127,8 @@ writePaste p = with_db $ \ db ->
          , toSql (paste_channel p),   toSql (paste_parentid p)
          , toSql (paste_ipaddress p), toSql (paste_hostname p)
          ]
-     stmt <- prepare db "select last_insert_rowid()"
-     execute stmt []
-     Just [i] <- fetchRow stmt
-     commit db
-     return $ Right $ fromSql i
+     i <- last_row_id db
+     return $ Right i
 
 getChannels :: StoreM [String]
 getChannels =
