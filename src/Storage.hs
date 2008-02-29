@@ -74,8 +74,6 @@ last_row_id db =
      return (fromSql i)
 
 
-
-
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset =
   select query (param ++ [toSql limit, toSql offset]) toPaste
@@ -117,18 +115,20 @@ addAnnotations pid ls = execMany query binds
 
 
 
-writePaste :: Paste -> StoreM (Either String Int)
+writePaste :: Paste -> StoreM Int
 writePaste p = with_db $ \ db ->
-  do stmt <- prepare db ("INSERT INTO paste "
-            ++ "(title, author, content, language, channel, parentid, ipaddress, hostname)"
-            ++ " VALUES (?,?,?,?,?,?,?,?)")
-     execute stmt    [ toSql (paste_title p),     toSql (paste_author p)
-         , toSql (paste_content p),   toSql (paste_language p)
-         , toSql (paste_channel p),   toSql (paste_parentid p)
-         , toSql (paste_ipaddress p), toSql (paste_hostname p)
-         ]
-     i <- last_row_id db
-     return $ Right i
+ do let query = "INSERT INTO paste (title, author, content, language, " ++
+                "channel, parentid, ipaddress, hostname)" ++
+                " VALUES (?,?,?,?,?,?,?,?)"
+        bindings =  [ toSql (paste_title p),     toSql (paste_author p)
+                    , toSql (paste_content p),   toSql (paste_language p)
+                    , toSql (paste_channel p),   toSql (paste_parentid p)
+                    , toSql (paste_ipaddress p), toSql (paste_hostname p)
+                    ]
+    run db query bindings
+    i <- last_row_id db
+    commit db
+    return i
 
 getChannels :: StoreM [String]
 getChannels =

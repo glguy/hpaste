@@ -147,10 +147,9 @@ handleSave title author content language channel mb_parent save preview =
                     , paste_timestamp = Nothing
                     , paste_expireon = Nothing
                     }
-  mbPasteId <- exec_db $ writePaste paste
-  log_on_error mbPasteId $ \ pasteId -> do
-    unless (null channel1) $ announce pasteId
-    redirectTo $ methodURL mView $ fromMaybe pasteId mb_parent1
+  pasteId <- exec_db $ writePaste paste
+  unless (null channel1) $ announce pasteId
+  redirectTo $ methodURL mView $ fromMaybe pasteId mb_parent1
 
 -- | Write the id of a newly created paste to the socket to communicate to
 --   the bot
