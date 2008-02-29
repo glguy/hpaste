@@ -64,12 +64,11 @@ try_exec_dml s = do liftIO $ print ".."
 
 with_db :: (Connection -> IO a) -> StoreM a
 with_db f =
- get_db >>= \ db -> SM $ lift $ do
+ get_db >>= \ db -> SM $ lift $ handleSql $ do
     c <- connectSqlite3 db
-    x <- (f c)
+    x <- f c
     disconnect c
     return x
-  `catchSql` \ e -> fail (show e)
 
 select query params parse = with_db $ \ c ->
  do stmt <- prepare c query
