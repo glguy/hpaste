@@ -31,6 +31,10 @@ import Utils.Misc(parse_time)
 import MonadLib
 import Database.HDBC.Sqlite3
 import Database.HDBC
+import Codec.Binary.UTF8.String as UTF8
+
+sqlToString = UTF8.decodeString . fromSql
+stringToSql = toSql . UTF8.encodeString
 
 newtype StoreM a = SM (ReaderT FilePath IO a) deriving (Functor,Monad)
 
@@ -120,9 +124,10 @@ writePaste p = with_db $ \ db ->
  do let query = "INSERT INTO paste (title, author, content, language, " ++
                 "channel, parentid, ipaddress, hostname)" ++
                 " VALUES (?,?,?,?,?,?,?,?)"
-        bindings =  [ toSql (paste_title p),     toSql (paste_author p)
-                    , toSql (paste_content p),   toSql (paste_language p)
-                    , toSql (paste_channel p),   toSql (paste_parentid p)
+        bindings =  [ stringToSql (paste_title p), stringToSql (paste_author p)
+                    , stringToSql (paste_content p)
+                    , stringToSql (paste_language p)
+                    , stringToSql (paste_channel p), toSql (paste_parentid p)
                     , toSql (paste_ipaddress p), toSql (paste_hostname p)
                     ]
     run db query bindings
@@ -162,9 +167,11 @@ toAnnotation _ = error "toAnnotation: bad list length"
 
 toPaste :: [SqlValue] -> Paste
 toPaste [a,b,c,d,e,f,g,h,i,j,k] =
-  Paste (fromSql a)(parse_time $ fromSql b)(fromSql c)(fromSql d)(fromSql e)(fromSql f)(fromSql g)(fromSql h)(fromSql i)(fromSql j)(fromSql k)
+  Paste (fromSql a) (parse_time $ fromSql b) (sqlToString c) (sqlToString d)
+        (fromSql e) (fromSql f) (fromSql g) (fromSql h) (sqlToString i)
+        (sqlToString j)(fromSql k)
 toPaste _ = error "toPaste: list length wrong"
 
 toChannel :: [SqlValue] -> String
-toChannel [a] = fromSql a
+toChannel [a] = sqlToString a
 toChannel _ = error "toChannel: list wrong length"
