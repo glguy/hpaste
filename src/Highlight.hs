@@ -1,6 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Highlight (PythonHandle(), init_highlighter, highlight,
-                  get_languages, with_python) where
+module Highlight (PythonHandle(), PythonM(), init_highlighter, highlight, get_languages, runPythonM) where
 
 import Control.Concurrent.MVar
 import Control.Monad.Trans
@@ -13,8 +12,10 @@ import Data.ByteString (packCStringLen, useAsCString)
 import Data.ByteString.UTF8 as UTF8
 
 newtype PythonHandle = PythonHandle (MVar ())
+newtype PythonM a = PythonM (IO a)
+  deriving (Monad,Functor)
 
-with_python (PythonHandle qsem) m =
+runPythonM (PythonHandle qsem) (PythonM m) =
  do liftIO $ takeMVar qsem
     x <- m
     liftIO $ putMVar qsem ()
@@ -26,13 +27,13 @@ init_highlighter =
     runPythonFile "highlighter.py"
     PythonHandle `fmap` newMVar ()
 
-highlight :: PythonHandle -> Int -> String -> String -> IO String
-highlight h pasteid lang code = with_python h $
+highlight :: Int -> String -> String -> PythonM String
+highlight pasteid lang code = PythonM $
   withObj' (fromImport "__main__" "hl") $ \ f ->
   withObj' (call3 f code lang pasteid ) getString
 
-get_languages :: PythonHandle -> IO [(String,String)]
-get_languages h = with_python h $
+get_languages :: PythonM [(String,String)]
+get_languages = PythonM $
   withObj' (fromImport "__main__" "get_all_lexers") $ \ get_lexers ->
   withObj' (call0 get_lexers)                       $ \ lexers     ->
   do xs <- forEach lexers $ \ x ->

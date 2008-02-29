@@ -118,7 +118,7 @@ edit_paste_form chans mb_pasteId language starting_text langs =
                        << map language_option langs
 
   language_option (k,v) | v == language = option ! [selected, value v] << k
-                    | otherwise     = option ! [value v] << k
+                        | otherwise     = option ! [value v] << k
 
   channel_drop_down = select ! [name "channel", identifier "channel"]
                       << (option << emphasize << "none"
