@@ -42,29 +42,10 @@ get_db = SM ask
 runStoreM :: FilePath -> StoreM a -> IO a
 runStoreM db (SM m) = runReaderT db m
 
-{-
-with_statement query f =
-  get_db >>= \db -> SM $ lift $ do
-    c <- connectSqlite3 db
-    res <- f =<< prepare c query
-    disconnect c
-    return res
-
-with_db (query,bindings,f) =
-  with_statement query $
-    StmtH (\stmt -> withBoundStatement pstmt bindings f)
-
-
-try_exec_dml s = do liftIO $ print ".."
-                    n <- execDML s `catchDB` \e -> liftIO (print e) >> return 18
-                    liftIO $ print n
-                    n `seq` return ()
-                 `catchDB` \_ -> return ()
--}
 
 with_db :: (Connection -> IO a) -> StoreM a
 with_db f =
- get_db >>= \ db -> SM $ lift $ handleSql $ do
+ get_db >>= \ db -> SM $ lift $ handleSqlError $ do
     c <- connectSqlite3 db
     x <- f c
     disconnect c
@@ -77,7 +58,7 @@ select query params parse = with_db $ \ c ->
 
 select1 query params parse = with_db $ \ c ->
  do stmt <- prepare c query
-    n <- execute stmt params
+    execute stmt params
     fmap parse `fmap` fetchRow stmt
 
 execMany query paramss = with_db $ \ c ->
@@ -85,38 +66,31 @@ execMany query paramss = with_db $ \ c ->
     executeMany stmt paramss
     commit c
 
+run' a b = with_db $ \ db -> run db a b >> commit db
+
+
+
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset =
-  select ("SELECT * FROM paste" ++ cond
-          ++ " ORDER BY createstamp DESC LIMIT ? OFFSET ?")
-         (param ++ [toSql limit, toSql offset])
-         toPaste
+  select query (param ++ [toSql limit, toSql offset]) toPaste
   where
+  query = "SELECT * FROM paste" ++ cond ++
+          " ORDER BY createstamp DESC LIMIT ? OFFSET ?"
   (param,cond) = case mpat of
                    Just pat -> ([toSql pat]," WHERE content LIKE ?")
                    Nothing -> ([], " WHERE parentid IS NULL")
 
 getChildren :: Int -> StoreM [Paste]
-getChildren parentid =
-  select "SELECT * from paste WHERE parentid = ? ORDER BY createstamp ASC"
-         [toSql parentid]
-         toPaste
+getChildren parentid = select query [toSql parentid] toPaste where
+  query = "SELECT * from paste WHERE parentid = ? ORDER BY createstamp ASC"
 
 getPaste :: Int -> StoreM (Maybe Paste)
-getPaste pasteId =
-  select1 "SELECT * FROM paste WHERE pasteid = ?"
-          [toSql pasteId]
-          toPaste
+getPaste pasteId = select1 query [toSql pasteId] toPaste
+  where query = "SELECT * FROM paste WHERE pasteid = ?" 
 
 getAnnotations :: Int -> StoreM [Int]
-getAnnotations pasteId =
-  select "SELECT line FROM annotation WHERE pasteid = ?"
-         [toSql pasteId]
-         toAnnotation
-
-toAnnotation :: [SqlValue] -> Int
-toAnnotation [a] = fromSql a
-toAnnotation _ = error "toAnnotation: bad list length"
+getAnnotations pasteId = select query [toSql pasteId] toAnnotation
+  where query = "SELECT line FROM annotation WHERE pasteid = ?"
 
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
@@ -136,10 +110,6 @@ addAnnotations pid ls = execMany query binds
   binds = [ [toSql pid, toSql l] | l <- ls ]
 
 
-toPaste :: [SqlValue] -> Paste
-toPaste [a,b,c,d,e,f,g,h,i,j,k] =
-  Paste (fromSql a)(parse_time $ fromSql b)(fromSql c)(fromSql d)(fromSql e)(fromSql f)(fromSql g)(fromSql h)(fromSql i)(fromSql j)(fromSql k)
-toPaste _ = error "toPaste: list length wrong"
 
 writePaste :: Paste -> StoreM (Either String Int)
 writePaste p = with_db $ \ db ->
@@ -161,9 +131,6 @@ getChannels :: StoreM [String]
 getChannels =
   select "SELECT channelname from channel ORDER BY channelname" [] toChannel
 
-toChannel :: [SqlValue] -> String
-toChannel [a] = fromSql a
-toChannel _ = error "toChannel: list wrong length"
 
 addChannel :: String -> StoreM ()
 addChannel chan =
@@ -186,9 +153,15 @@ topmost_parent mb_parent =
 
   where bind m f = maybe (return Nothing) f =<< m
 
-run' a b = with_db $ \ db ->
- do print a
-    stmt <- prepare db a
-    print =<< execute stmt b
-    commit db
-    return ()
+toAnnotation :: [SqlValue] -> Int
+toAnnotation [a] = fromSql a
+toAnnotation _ = error "toAnnotation: bad list length"
+
+toPaste :: [SqlValue] -> Paste
+toPaste [a,b,c,d,e,f,g,h,i,j,k] =
+  Paste (fromSql a)(parse_time $ fromSql b)(fromSql c)(fromSql d)(fromSql e)(fromSql f)(fromSql g)(fromSql h)(fromSql i)(fromSql j)(fromSql k)
+toPaste _ = error "toPaste: list length wrong"
+
+toChannel :: [SqlValue] -> String
+toChannel [a] = fromSql a
+toChannel _ = error "toChannel: list wrong length"
