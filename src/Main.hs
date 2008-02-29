@@ -149,7 +149,7 @@ handleSave title author content language channel mb_parent save preview =
                     }
   pasteId <- exec_db $ writePaste paste
   unless (null channel1) $ announce pasteId
-  redirectTo $ methodURL mView $ fromMaybe pasteId mb_parent1
+  redirectToView pasteId mb_parent1
 
 -- | Write the id of a newly created paste to the socket to communicate to
 --   the bot
@@ -202,13 +202,21 @@ handleList pat offset = do
 
 -- | Mark lines in a paste to be highlighted
 handleAddAnnot :: Int -> [(String,Int)] -> Action
-handleAddAnnot pid ls = do exec_db (addAnnotations pid (map snd ls))
-                           redirectTo (methodURL mView pid)
+handleAddAnnot pid ls = do mbPaste <- exec_db $ getPaste pid
+                           case mbPaste of
+                             Nothing -> outputNotFound $ "no paste " ++ show pid
+                             Just paste ->
+                               do exec_db (addAnnotations pid (map snd ls))
+                                  redirectToView pid (paste_parentid paste)
 
 -- | Unmark lines in a paste to be highlighted
 handleDelAnnot :: Int -> [(String,Int)] -> Action
-handleDelAnnot pid ls = do exec_db (delAnnotations pid (map snd ls))
-                           redirectTo (methodURL mView pid)
+handleDelAnnot pid ls = do mbPaste <- exec_db $ getPaste pid
+                           case mbPaste of
+                             Nothing -> outputNotFound $ "no paste " ++ show pid
+                             Just paste ->
+                               do exec_db (delAnnotations pid (map snd ls))
+                                  redirectToView pid (paste_parentid paste)
 
 -- | Split a list of elements by some delimiter
 split :: Eq a => a -> [a] -> [[a]]
@@ -235,11 +243,13 @@ outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
                   xs <- buildHTML s
                   output $ UTF8.encodeString $ showHtml xs
 
--- | Redirect the user to a URL using 303 See Other
-redirectTo :: MonadCGI m => URL -> m CGIResult
-redirectTo url = do sn <- scriptName
-                    setStatus 303 "See Other"
-                    redirect $ sn ++ exportURL url
+-- | Redirect the user to view another paste using 303 See Other
+redirectToView :: MonadCGI m => Int -> Maybe Int -> m CGIResult
+redirectToView pid mbPpid =
+  do sn <- scriptName
+     let url = methodURL mView $ fromMaybe pid mbPpid
+     setStatus 303 "See Other"
+     redirect $ sn ++ exportURL url ++ "#a" ++ show pid
 
 -- | Given a value that could contain an error message, either report an
 --   500 Internal Server Error or pass the result to the continuation.
