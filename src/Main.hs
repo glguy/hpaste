@@ -45,9 +45,9 @@ type Action = PasteM CGIResult
 get_conf :: PasteM Config
 get_conf = fmap snd ask
 
-exec_python m =
+exec_python f =
  do h <- fmap fst ask
-    with_python h m
+    f h
 
 runPasteM :: PythonHandle -> Config -> PasteM a -> CGI a
 runPasteM a b = runReaderT (a,b)
@@ -95,7 +95,7 @@ handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
  do chans <- exec_db getChannels
     mb_text <- get_previous
-    langs <- exec_python $ liftIO get_languages
+    langs <- exec_python $ \ h -> liftIO $ get_languages h
     log_on_error mb_text $ \ (text, language) ->
       outputHTML $ edit_paste_form chans mb_pasteId language text langs
   where
@@ -116,7 +116,7 @@ handleNew mb_pasteId edit =
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Maybe () -> Action
 handleSave title author content language channel mb_parent save preview =
-  exec_python (liftIO get_languages) >>= \ languages ->
+  exec_python (\ h -> liftIO $ get_languages h) >>= \ languages ->
   let validation_msgs = catMaybes [length_check "title" 40 title
                                   ,length_check "author" 40 author
                                   ,length_check "content" 5000 content
@@ -174,8 +174,8 @@ handleView pasteId =
                     outputHTML $ display_pastes now x kids xs
   where
   hl paste = do as <- exec_db $ getAnnotations $ paste_id paste
-                htm <- exec_python $
-                             liftIO $ highlight (paste_id paste)
+                htm <- exec_python $ \ h ->
+                             liftIO $ highlight h (paste_id paste)
                                                 (paste_language paste)
                                                 (paste_content paste)
                 return (htm,as)

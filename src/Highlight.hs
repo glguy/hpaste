@@ -26,13 +26,13 @@ init_highlighter =
     runPythonFile "highlighter.py"
     PythonHandle `fmap` newMVar ()
 
-highlight :: Int -> String -> String -> IO String
-highlight pasteid lang code =
+highlight :: PythonHandle -> Int -> String -> String -> IO String
+highlight h pasteid lang code = with_python h $
   withObj' (fromImport "__main__" "hl") $ \ f ->
   withObj' (call3 f code lang pasteid ) getString
 
-get_languages :: IO [(String,String)]
-get_languages =
+get_languages :: PythonHandle -> IO [(String,String)]
+get_languages h = with_python h $
   withObj' (fromImport "__main__" "get_all_lexers") $ \ get_lexers ->
   withObj' (call0 get_lexers)                       $ \ lexers     ->
   do xs <- forEach lexers $ \ x ->
@@ -92,6 +92,9 @@ foreign import ccall "python2.5/Python.h PyGILState_Release"
 
 foreign import ccall "python2.5/Python.h PyEval_ReleaseLock"
   pyEvalReleaseLock :: IO ()
+
+foreign import ccall "python2.5/Python.h PyEval_AcquireLock"
+  pyEvalAcquireLock :: IO ()
 
 withGIL :: IO a -> IO a
 withGIL m =
