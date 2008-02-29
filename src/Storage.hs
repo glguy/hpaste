@@ -64,7 +64,7 @@ execMany query paramss = with_db $ \ c ->
     executeMany stmt paramss
     commit c
 
-run' a b = with_db $ \ db -> run db a b >> commit db
+exec a b = with_db $ \ db -> run db a b >> commit db
 
 last_row_id :: IConnection c => c -> IO Int
 last_row_id db =
@@ -101,7 +101,7 @@ getAnnotations pasteId = select query [toSql pasteId] toAnnotation
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
 delAnnotations pid [] =
-  run' "DELETE FROM annotation WHERE pasteid = ?" [toSql pid]
+  exec "DELETE FROM annotation WHERE pasteid = ?" [toSql pid]
 
 delAnnotations pid ls = execMany query binds
   where
@@ -137,14 +137,14 @@ getChannels =
 
 addChannel :: String -> StoreM ()
 addChannel chan =
-  run' "INSERT INTO channel (channelname) VALUES (?)" [toSql chan]
+  exec "INSERT INTO channel (channelname) VALUES (?)" [toSql chan]
 
 delChannel :: String -> StoreM ()
 delChannel chan =
-  run' "DELETE FROM channel WHERE channelname = ?" [toSql chan]
+  exec "DELETE FROM channel WHERE channelname = ?" [toSql chan]
 
 clearChannels :: StoreM ()
-clearChannels = run' "DELETE FROM channel"  []
+clearChannels = exec "DELETE FROM channel"  []
 
 topmost_parent :: Maybe Int -> StoreM (Maybe Int)
 topmost_parent mb_parent =
