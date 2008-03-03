@@ -53,9 +53,11 @@ with_db f =
     disconnect c
     return x
 
+select :: String -> [SqlValue] -> ([SqlValue] -> a) -> StoreM [a]
 select query params parse = with_db $ \ c ->
     fmap parse `fmap` quickQuery' c query params
 
+select1 :: String -> [SqlValue] -> ([SqlValue] -> a) -> StoreM (Maybe a)
 select1 query params parse = with_db $ \ c ->
  do stmt <- prepare c query
     execute stmt params
@@ -63,18 +65,18 @@ select1 query params parse = with_db $ \ c ->
     finish stmt
     return r
 
+execMany :: String -> [[SqlValue]] -> StoreM ()
 execMany query paramss = with_db $ \ c ->
  do stmt <- prepare c query
     executeMany stmt paramss
     commit c
 
+exec :: String -> [SqlValue] -> StoreM ()
 exec a b = with_db $ \ db -> run db a b >> commit db
 
-last_row_id :: IConnection c => c -> IO Int
+last_row_id :: Connection -> IO Int
 last_row_id db =
-  do stmt <- prepare db "select last_insert_rowid()"
-     execute stmt []
-     Just [i] <- fetchRow stmt
+  do [[i]] <- quickQuery' db "select last_insert_rowid()" []
      return (fromSql i)
 
 
