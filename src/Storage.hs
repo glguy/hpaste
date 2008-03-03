@@ -54,14 +54,14 @@ with_db f =
     return x
 
 select query params parse = with_db $ \ c ->
- do stmt <- prepare c query
-    execute stmt params
-    fmap parse `fmap` fetchAllRows' stmt
+    fmap parse `fmap` quickQuery' c query params
 
 select1 query params parse = with_db $ \ c ->
  do stmt <- prepare c query
     execute stmt params
-    fmap parse `fmap` fetchRow stmt
+    r <- fmap parse `fmap` fetchRow stmt
+    finish stmt
+    return r
 
 execMany query paramss = with_db $ \ c ->
  do stmt <- prepare c query
