@@ -4,37 +4,27 @@ body { font-family: sans-serif
      ; font-style:normal
      ; font-variant:normal
      ; font-weight:normal
-     /*; background-image: url(/grayshadowedstripe.png)
-     ; background-repeat: repeat-y
-*/
      ; background-color: #eee;
      ; margin: 0
      ; padding: 0
      }
 span.labelkey {
-  margin-left: 10px;
   color: #999;
   font-style: italic;
 }
 span.labelitem {
   white-space: nowrap;
   font-weight: normal;
-  background-color: #ccc;
-  margin-right: 10px;
-  /*background-image: url(/corner.png);
-  background-repeat: no-repeat;*/
+  margin-right: 5px;
   padding: 2px;
   font-size: smaller;
 }
 span.labelvalue {
-  margin-left: 10px;
   color: #333;
   padding: 0 5px;
 }
 div.labels {
-  display: block;
   text-align: right;
-  width: 100%;
 }
 
 div.footerlinks {
@@ -93,14 +83,9 @@ div.toplinks {
 }
 div.toplinks a {
   color: white;
-  margin-right: 10px; 
+  margin-right: 5px;
 }
-div.toplinks a:hover {
-}
-
 h1 {
-     /*background-image: url(/hpastetwo.png);
-     background-repeat: no-repeat;*/
    background-color: #003;
    padding: 10px;
    margin: 0;
@@ -152,12 +137,17 @@ table.pastelist a:active {
 }
 */
 
-
-h2 {
+div.pasteheader {
   color: #333;
-  margin: 0;
   background-color: #ccc;
+  background-image: url(corner.png);
+  background-repeat: no-repeat;
   padding: 0 5px;
+}
+div.pasteheader h2 {
+  font-size: 1em;
+  float: left;
+  margin: 0 ;
 }
 
 div.entrylinks {
@@ -208,11 +198,6 @@ input.imagebutton {
  background-repeat: no-repeat;*/
  background-color: #333366;
  font-style: italic;
-}
-h2 {
-  background-image: url(/corner.png);
-  background-repeat: no-repeat;
-  font-size: 1em;
 }
 div.clearer { clear: both; }
 span.leftmost { float: left }

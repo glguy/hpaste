@@ -153,16 +153,22 @@ display_paste now view_url (paste, rendered) =
   return $
       thediv ! [theclass "entrylinks"]
       << (anchor ! [ href new_url] << "modify"
+      +++ " "
       +++ anchor ! [href raw_url] << "download"
+      +++ " "
       +++ anchor ! [identifier ("a" ++ show (paste_id paste)),
                     href (view_url ++ "#a" ++ show(paste_id paste)) ] << "link"
          )
-  +++ h2 << (thespan ! [theclass "leftmost"] << paste_title paste
-  +++ thediv ! [theclass "labels"]
-      << (make_label "author" (paste_author paste)
-      +++ make_label "age" (show_ago now paste)
-      +++ make_label "language" (paste_language paste)
-         ))
+  +++ thediv ! [theclass "pasteheader"]
+      << (h2 << paste_title paste
+      +++ thediv ! [theclass "labels"]
+          << (make_label "author" (paste_author paste)
+          +++ " "
+          +++ make_label "age" (show_ago now paste)
+          +++ " "
+          +++ make_label "language" (paste_language paste)
+             )
+         )
   +++ thediv ! [theclass "clearer"] << noHtml
   +++ thediv ! [theclass "contentbox"] << primHtml rendered
   +++ form ! [method "POST", action "add_annot"]
@@ -177,6 +183,7 @@ display_paste now view_url (paste, rendered) =
   where
   make_label k v = thespan ! [theclass "labelitem"]
                    << (thespan ! [theclass "labelkey"] << k
+                   +++ " "
                    +++ thespan ! [theclass "labelvalue"] << v)
 
 skin :: String -> Html -> Html -> Html -> PageM Html
@@ -196,7 +203,9 @@ skin title_text other_links head_html body_html =
      << (h1 << anchor ! [href list_url] << "hpastetwo"
      +++ thediv ! [theclass "toplinks"]
          << (anchor ! [href list_url] << "recent"
+         +++ " "
          +++ anchor ! [href new_url] << "new"
+         +++ " "
          +++ other_links)
      +++ thediv ! [theclass "wrapper"] << body_html
      +++ thediv ! [theclass "footer"]
