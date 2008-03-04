@@ -61,9 +61,13 @@ with_db query bindings (Handler f) =
   withBoundStatement pstmt bindings f))
 
 many_with_db query bindingss (Handler f) =
-  with_query query $ QueryH (\ pstmt ->
-  forM_ bindingss (\ bindings ->
-  withBoundStatement pstmt bindings f))
+ do db <- get_db
+    inBase $ (withSession (connect db)
+             (forM_ bindingss (\ bindings ->
+             withPreparedStatement stmt (\ pstmt ->
+             withBoundStatement pstmt bindings f))))
+      `catchDB` \ e -> fail (formatDBException e)
+  where stmt = prepareQuery (sql query)
 
 exec a b      = with_db a b dmlHandler
 execMany a bs = many_with_db a bs dmlHandler
