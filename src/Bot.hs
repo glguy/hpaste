@@ -32,6 +32,7 @@ main = do
         fork announcer
         io $ takeMVar done
         exec_db $ clearChannels
+        return ()
 
 connect :: String -> Int -> IO Handle
 connect host port =
