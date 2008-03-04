@@ -55,7 +55,8 @@ run_db m = do db <- get_db
               inBase $ withSession (connect db) m
                        `catchDB` \ e -> fail (formatDBException e)
 
-execMany a bs = run_db (forM_ bs (\ b -> execDML (cmdbind a b)))
+execMany a bs = run_db (withPreparedStatement (prepareCommand (sql a)) (\ p ->
+                        forM_ bs (\ b -> withBoundStatement p b execDML)))
 
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset = run_db (allPastes (sqlbind query bindings))
@@ -155,7 +156,7 @@ allPastes stmt = reverse `fmap` doQuery stmt iter []
 onePaste stmt = doQuery stmt iter Nothing
   where
   iter :: Monad m => PasteIter (IterAct m (Maybe Paste))
-  iter a b c d e f g h i j k _ = return $ Left $ Just $
+  iter a b c d e f g h i j k _ = oneResult $ Just $
     Paste a (parse_time b) c d e f g h i j (zeroIsNothing k)
 
 zeroIsNothing (Just 0) = Nothing
@@ -168,12 +169,15 @@ allChannels stmt = reverse `fmap` doQuery stmt iter []
 
 getUserByMask :: String -> StoreM (Maybe User)
 getUserByMask mask = run_db (oneUser (sqlbind query [bindP mask]))
-  where query = "SELECT userid,username,userpassword,ircmask,admin FROM user " ++
-                "WHERE ircmask = ?"
+  where query = "SELECT userid,username,userpassword,ircmask,admin FROM user "
+             ++ "WHERE ircmask = ?"
 
 type UserIter x = Int -> String -> String -> Maybe String -> Int -> x
 
 oneUser stmt = doQuery stmt iter Nothing
   where
   iter :: Monad m => UserIter (IterAct m (Maybe User))
-  iter i a b c d _ = return $ Left $ Just $ User i a b c (d == 1)
+  iter i a b c d _ = oneResult $ Just $ User i a b c (d == 1)
+
+oneResult :: Monad m => IterAct m a
+oneResult a = return (Left a)

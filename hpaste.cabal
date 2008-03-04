@@ -19,7 +19,7 @@ executable hpastebot
     ghc-options:     -threaded
     hs-source-dirs:  src
     build-depends:   irc               >= 0.4,
-                     Takusen           == 0.7
+                     Takusen           >= 0.8
 
 executable hpaste.fcgi
     Extra-Libraries: python2.5, m
@@ -52,7 +52,7 @@ executable hpaste.fcgi
                      monadLib          >= 3.4.4,
                      bytestring        >= 0.9.0.1,
                      process           >= 1.0.0.0,
-                     Takusen           >= 0.7,
+                     Takusen           >= 0.8,
                      -- because of cgi:
                      mtl               >= 1.1.0.0
 
