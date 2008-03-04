@@ -20,3 +20,10 @@ CREATE TABLE IF NOT EXISTS annotation
   , line INTEGER NOT NULL
   , PRIMARY KEY (pasteid, line)
   );
+CREATE TABLE IF NOT EXISTS user
+  ( userid INTEGER NOT NULL PRIMARY KEY
+  , username TEXT NOT NULL UNIQUE
+  , userpassword TEXT NOT NULL
+  , ircmask TEXT
+  , admin INTEGER NOT NULL DEFAULT 0
+  );

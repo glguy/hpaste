@@ -19,3 +19,11 @@ data Paste = Paste
       }
  deriving (Typeable, Show)
 
+data User = User
+      { user_id         :: Int
+      , user_name       :: String
+      , user_password   :: String
+      , user_ircmask    :: Maybe String
+      , user_admin      :: Bool
+      }
+  deriving (Typeable, Show)

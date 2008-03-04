@@ -24,6 +24,9 @@ module Storage
   , addChannel
   , delChannel
   , clearChannels
+
+  -- * User functions
+  , getUserByMask
   ) where
 
 import Types
@@ -163,3 +166,15 @@ allChannels stmt = reverse `fmap` doQuery stmt iter []
   where
   iter :: Monad m => String -> IterAct m [String]
   iter a acc = result' (a : acc)
+
+getUserByMask :: String -> StoreM (Maybe User)
+getUserByMask mask = run_db (oneUser (sqlbind query [bindP mask]))
+  where query = "SELECT userid,username,userpassword,ircmask,admin FROM user " ++
+                "WHERE ircmask = ?"
+
+type UserIter x = Int -> String -> String -> Maybe String -> Int -> x
+
+oneUser stmt = doQuery stmt iter Nothing
+  where
+  iter :: Monad m => UserIter (IterAct m (Maybe User))
+  iter i a b c d _ = return $ Left $ Just $ User i a b c (d == 1)

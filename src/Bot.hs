@@ -57,16 +57,20 @@ handle_message m =
     Message _ "PRIVMSG" _ -> handle_privmsg m
     _ -> io (print m) >> return []
 
-handle_privmsg m@(Message _ _ [target,what]) =
+handle_privmsg m@(Message (Just (NickName n _ (Just mask))) _ [target,what]) =
  do conf <- current_config
-    if target == irc_nick conf then
+    if target == irc_nick conf then do
+      user <- exec_db $ getUserByMask mask
+      case user of
+       Just u | user_admin u && user_name u == n ->
         case what of
              'j':' ':chan -> do exec_db $ addChannel chan
                                 return [joinChan chan]
              'p':' ':chan -> do exec_db $ delChannel chan
                                 return [part chan]
              "quit"       -> end_bot >> return []
-             _            -> io (print m) >> return []
+             _            -> io (putStrLn "no command" >> print m) >> return []
+       _ -> io (print m) >> return []
       else if (irc_nick conf ++ ": url") `isPrefixOf` what then
         return [privmsg target (base_url conf ++
                                  exportURL (methodURL mList Nothing Nothing))]
