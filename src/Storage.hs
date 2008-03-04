@@ -1,5 +1,6 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Storage
   (
   -- * The Store monad
@@ -29,14 +30,16 @@ import Types
 import Utils.Misc(parse_time)
 
 import MonadLib
-import Database.HDBC.Sqlite3
-import Database.HDBC
+import Database.Sqlite.Enumerator
 import Codec.Binary.UTF8.String as UTF8
+import Data.Maybe (listToMaybe,fromMaybe)
+import Data.Typeable
 
-sqlToString = UTF8.decodeString . fromSql
-stringToSql = toSql . UTF8.encodeString
+newtype StoreM a = SM (ReaderT FilePath IO a)
+  deriving (Functor,Monad)
 
-newtype StoreM a = SM (ReaderT FilePath IO a) deriving (Functor,Monad)
+instance BaseM StoreM IO where
+  inBase = SM . lift . inBase
 
 get_db :: StoreM FilePath
 get_db = SM ask
@@ -44,136 +47,136 @@ get_db = SM ask
 runStoreM :: FilePath -> StoreM a -> IO a
 runStoreM db (SM m) = runReaderT db m
 
+data Handle bstmt s a = Handler (forall mark. bstmt -> DBM mark s a)
+data QueryH st s a = QueryH (forall m. PreparedStmt m st -> DBM m s a)
 
-with_db :: (Connection -> IO a) -> StoreM a
-with_db f =
- get_db >>= \ db -> SM $ lift $ handleSqlError $ do
-    c <- connectSqlite3 db
-    x <- f c
-    disconnect c
-    return x
+with_query query (QueryH f) =
+ do db <- get_db
+    inBase $ withSession (connect db)
+      (withPreparedStatement (prepareQuery (sql query)) f)
+      `catchDB` \ e -> fail (formatDBException e)
 
-select :: String -> [SqlValue] -> ([SqlValue] -> a) -> StoreM [a]
-select query params parse = with_db $ \ c ->
-    fmap parse `fmap` quickQuery' c query params
+with_db query bindings (Handler f) =
+  with_query query (QueryH (\ pstmt ->
+  withBoundStatement pstmt bindings f))
 
-select1 :: String -> [SqlValue] -> ([SqlValue] -> a) -> StoreM (Maybe a)
-select1 query params parse = with_db $ \ c ->
- do stmt <- prepare c query
-    execute stmt params
-    r <- fmap parse `fmap` fetchRow stmt
-    finish stmt
-    return r
+many_with_db query bindingss (Handler f) =
+  with_query query $ QueryH (\ pstmt ->
+  forM_ bindingss (\ bindings ->
+  withBoundStatement pstmt bindings f))
 
-execMany :: String -> [[SqlValue]] -> StoreM ()
-execMany query paramss = with_db $ \ c ->
- do stmt <- prepare c query
-    executeMany stmt paramss
-    commit c
-
-exec :: String -> [SqlValue] -> StoreM ()
-exec a b = with_db $ \ db -> run db a b >> commit db
-
-last_row_id :: Connection -> IO Int
-last_row_id db =
-  do [[i]] <- quickQuery' db "select last_insert_rowid()" []
-     return (fromSql i)
-
+exec a b      = with_db a b dmlHandler
+execMany a bs = many_with_db a bs dmlHandler
+dmlHandler    = Handler (\ bstmt -> execDML bstmt >> return ())
 
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset =
-  select query (param ++ [toSql limit, toSql offset]) toPaste
+  with_db query (param ++ [bindP limit, bindP offset])
+                allPastes
   where
   query = "SELECT * FROM paste" ++ cond ++
           " ORDER BY createstamp DESC LIMIT ? OFFSET ?"
   (param,cond) = case mpat of
-                   Just pat -> ([toSql pat]," WHERE content LIKE ?")
+                   Just pat -> ([bindP pat]," WHERE content LIKE ?")
                    Nothing -> ([], " WHERE parentid IS NULL")
 
 getChildren :: Int -> StoreM [Paste]
-getChildren parentid = select query [toSql parentid] toPaste where
+getChildren parentid =
+  with_db query [bindP parentid] allPastes where
   query = "SELECT * from paste WHERE parentid = ? ORDER BY createstamp ASC"
 
 getPaste :: Int -> StoreM (Maybe Paste)
-getPaste pasteId = select1 query [toSql pasteId] toPaste
-  where query = "SELECT * FROM paste WHERE pasteid = ?" 
+getPaste pasteId = with_db query [bindP pasteId] onePaste
+  where query = "SELECT * FROM paste WHERE pasteid = ?"
 
 getAnnotations :: Int -> StoreM [Int]
-getAnnotations pasteId = select query [toSql pasteId] toAnnotation
+getAnnotations pasteId = with_db query [bindP pasteId] allAnnotations
   where query = "SELECT line FROM annotation WHERE pasteid = ?"
 
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
 delAnnotations pid [] =
-  exec "DELETE FROM annotation WHERE pasteid = ?" [toSql pid]
+  exec "DELETE FROM annotation WHERE pasteid = ?" [bindP pid]
 
 delAnnotations pid ls = execMany query binds
   where
   query = "DELETE FROM annotation WHERE pasteid = ? AND line = ?"
-  binds = [ [toSql pid,toSql l] | l <- ls ]
+  binds = [ [bindP pid,bindP l] | l <- ls ]
 
 
 addAnnotations :: Int -> [Int] -> StoreM ()
 addAnnotations pid ls = execMany query binds
   where
   query = "REPLACE INTO annotation (pasteid,line) VALUES (?,?)"
-  binds = [ [toSql pid, toSql l] | l <- ls ]
+  binds = [ [bindP pid, bindP l] | l <- ls ]
 
 
 
 writePaste :: Paste -> StoreM Int
-writePaste p = with_db $ \ db ->
- do let query = "INSERT INTO paste (title, author, content, language, " ++
-                "channel, parentid, ipaddress, hostname)" ++
-                " VALUES (?,?,?,?,?,?,?,?)"
-        bindings =  [ stringToSql (paste_title p), stringToSql (paste_author p)
-                    , stringToSql (paste_content p)
-                    , stringToSql (paste_language p)
-                    , stringToSql (paste_channel p), toSql (paste_parentid p)
-                    , toSql (paste_ipaddress p), toSql (paste_hostname p)
-                    ]
-    run db query bindings
-    i <- last_row_id db
-    commit db
-    return i
+writePaste p = with_db query bindings lastRowHandler
+  where
+  query = "INSERT INTO paste (title, author, content, language, " ++
+          "channel, parentid, ipaddress, hostname)" ++
+          " VALUES (?,?,?,?,?,?,?,?)"
+  bindings =  [ bindP (paste_title p), bindP (paste_author p)
+              , bindP (paste_content p)
+              , bindP (paste_language p)
+              , bindP (paste_channel p), bindP (paste_parentid p)
+              , bindP (paste_ipaddress p), bindP (paste_hostname p)
+              ]
 
 getChannels :: StoreM [String]
 getChannels =
-  select "SELECT channelname from channel ORDER BY channelname" [] toChannel
+  with_db "SELECT channelname from channel ORDER BY channelname" [] allChannels
 
 
 addChannel :: String -> StoreM ()
 addChannel chan =
-  exec "INSERT INTO channel (channelname) VALUES (?)" [toSql chan]
+  exec "INSERT INTO channel (channelname) VALUES (?)" [bindP chan]
 
 delChannel :: String -> StoreM ()
 delChannel chan =
-  exec "DELETE FROM channel WHERE channelname = ?" [toSql chan]
+  exec "DELETE FROM channel WHERE channelname = ?" [bindP chan]
 
 clearChannels :: StoreM ()
-clearChannels = exec "DELETE FROM channel"  []
+clearChannels = exec "DELETE FROM channel" []
 
 topmost_parent :: Maybe Int -> StoreM (Maybe Int)
 topmost_parent mb_parent =
   return mb_parent `bind` \ parent ->
   getPaste parent `bind` \ ppaste ->
-  return $ Just $ case paste_parentid ppaste of
-                    Just i | i > 0 -> i
-                    _ -> paste_id ppaste
-
+  return $ Just $ fromMaybe (paste_id ppaste) (paste_parentid ppaste)
   where bind m f = maybe (return Nothing) f =<< m
 
-toAnnotation :: [SqlValue] -> Int
-toAnnotation [a] = fromSql a
-toAnnotation _ = error "toAnnotation: bad list length"
 
-toPaste :: [SqlValue] -> Paste
-toPaste [a,b,c,d,e,f,g,h,i,j,k] =
-  Paste (fromSql a) (parse_time $ fromSql b) (sqlToString c) (sqlToString d)
-        (fromSql e) (fromSql f) (fromSql g) (fromSql h) (sqlToString i)
-        (sqlToString j)(fromSql k)
-toPaste _ = error "toPaste: list length wrong"
+allAnnotations = Handler (\ bstmt -> reverse `fmap` doQuery bstmt iter [])
+  where
+  iter :: Monad m => Int -> IterAct m [Int]
+  iter x acc = result' (x : acc)
 
-toChannel :: [SqlValue] -> String
-toChannel [a] = sqlToString a
-toChannel _ = error "toChannel: list wrong length"
+type PasteIter x
+  = Int -> String -> String -> String -> String -> Maybe String -> String
+  -> Maybe Int -> String -> String -> Maybe Int -> x
+
+allPastes = Handler (\ bstmt -> reverse `fmap` doQuery bstmt iter [])
+  where
+  iter :: Monad m => PasteIter (IterAct m [Paste])
+  iter a b c d e f g h i j k acc =
+    result' (Paste a (parse_time b) c d e f g h i j (zeroIsNothing k) : acc)
+
+onePaste = Handler (\ bstmt -> doQuery bstmt iter Nothing)
+  where
+  iter :: Monad m => PasteIter (IterAct m (Maybe Paste))
+  iter a b c d e f g h i j k _ =
+    return $ Left $ Just $ Paste a (parse_time b) c d e f g h i j (zeroIsNothing k)
+
+zeroIsNothing (Just 0) = Nothing
+zeroIsNothing x = x
+
+lastRowHandler = Handler (\ bstmt ->
+   execDML bstmt >> fromIntegral `fmap` inquire LastInsertRowid)
+
+allChannels = Handler (\ bstmt -> doQuery bstmt iter [])
+  where
+  iter :: Monad m => String -> IterAct m [String]
+  iter a acc = result' (a : acc)
