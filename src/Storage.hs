@@ -55,7 +55,7 @@ run_db m = do db <- get_db
               inBase $ withSession (connect db) m
                        `catchDB` \ e -> fail (formatDBException e)
 
-execMany a bs = run_db (forM_ bs (\ b -> execDML (sqlbind a b)))
+execMany a bs = run_db (forM_ bs (\ b -> execDML (cmdbind a b)))
 
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset = run_db (allPastes (sqlbind query bindings))
@@ -82,7 +82,7 @@ getAnnotations pasteId = run_db (allAnnotations (sqlbind query [bindP pasteId]))
 
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
-delAnnotations pid [] = run_db (execDML (sqlbind query [bindP pid]) >>
+delAnnotations pid [] = run_db (execDML (cmdbind query [bindP pid]) >>
                                 return ())
   where query = "DELETE FROM annotation WHERE pasteid = ?"
 
@@ -101,34 +101,33 @@ addAnnotations pid ls = execMany query binds
 
 
 writePaste :: Paste -> StoreM Int
-writePaste p = run_db (execDML (sqlbind query bindings) >>
+writePaste p = run_db (execDML (cmdbind query bindings) >>
                        fromIntegral `fmap` inquire LastInsertRowid)
   where
   query = "INSERT INTO paste (title, author, content, language, " ++
           "channel, parentid, ipaddress, hostname)" ++
           " VALUES (?,?,?,?,?,?,?,?)"
-  bindings =  [ bindP (paste_title p), bindP (paste_author p)
-              , bindP (paste_content p)
-              , bindP (paste_language p)
-              , bindP (paste_channel p), bindP (paste_parentid p)
+  bindings =  [ bindP (paste_title p)    , bindP (paste_author p)
+              , bindP (paste_content p)  , bindP (paste_language p)
+              , bindP (paste_channel p)  , bindP (paste_parentid p)
               , bindP (paste_ipaddress p), bindP (paste_hostname p)
               ]
 
 getChannels :: StoreM [String]
-getChannels = run_db (allChannels (sql query))
+getChannels = run_db (allChannels query)
   where query = "SELECT channelname from channel ORDER BY channelname"
 
 
 addChannel :: String -> StoreM Int
-addChannel chan = run_db (execDML (sqlbind query [bindP chan]))
+addChannel chan = run_db (execDML (cmdbind query [bindP chan]))
   where query = "INSERT INTO channel (channelname) VALUES (?)"
 
 delChannel :: String -> StoreM Int
-delChannel chan = run_db (execDML (sqlbind query [bindP chan]))
+delChannel chan = run_db (execDML (cmdbind query [bindP chan]))
   where query = "DELETE FROM channel WHERE channelname = ?"
 
 clearChannels :: StoreM Int
-clearChannels = run_db (execDML (sql "DELETE FROM channel"))
+clearChannels = run_db (execDML "DELETE FROM channel")
 
 topmost_parent :: Maybe Int -> StoreM (Maybe Int)
 topmost_parent mb_parent =
