@@ -120,8 +120,6 @@ handleSave title author content language channel mb_parent preview =
   let validation_msgs = catMaybes [length_check "title" 40 title
                                   ,length_check "author" 40 author
                                   ,length_check "content" 5000 content
-                                  ,blank_check "title" title
-                                  ,blank_check "author" author
                                   ,blank_check "content" content
                                   ,member_check "language" language
                                                    (map snd languages)
