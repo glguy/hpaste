@@ -20,6 +20,7 @@ import Session
 import Storage
 import Types
 import Utils.Compat()
+import Utils.Misc
 import Utils.URL
 
 import Codec.Binary.UTF8.String as UTF8
@@ -169,9 +170,19 @@ handleView pasteId =
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- exec_db $ getChildren pasteId
-                    now <- liftIO getCurrentTime
-                    xs <- mapM hl (x:kids)
-                    outputHTML $ display_pastes now x kids xs
+                    let mb_last_mod = paste_timestamp (last (x:kids))
+                    let finish = do now <- liftIO getCurrentTime
+                                    xs <- mapM hl (x:kids)
+                                    outputHTML $ display_pastes now x kids xs
+                    case mb_last_mod of
+                      Just last_mod -> do
+                        last_mod_since <- requestHeader "If-Modified-Since"
+                        case read_rfc1123 =<< last_mod_since of
+                          Just t | t >= last_mod -> outputNotModified
+                          _ -> do setHeader "Last-Modified"
+                                                       (show_rfc1123 last_mod)
+                                  finish
+                      _ -> finish
   where
   hl paste = exec_python $ highlight (paste_id paste)
                                      (paste_language paste)
@@ -292,3 +303,7 @@ session_get :: Read a => String -> PasteM (Maybe a)
 session_get k =
  do sid <- ask_session_id
     exec_db (getSessionVar sid k)
+
+outputNotModified =
+ do setStatus 304 "Not Modified"
+    outputNothing
