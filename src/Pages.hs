@@ -98,7 +98,9 @@ edit_paste_form chans mb_pasteId language starting_text langs =
                        ,maxlength 40])
 
       +++ input ! [ thetype "submit", alt "save" ,theclass "imagebutton"
-                  , name "submit", value "save" ]
+                  , name "save", value "save" ]
+      +++ input ! [ thetype "submit", alt "save" ,theclass "imagebutton"
+                  , name "preview", value "preview" ]
           )
   +++ thediv ! [theclass "tabsrow2"]
       << (label ! [thefor "language"]
@@ -128,14 +130,22 @@ edit_paste_form chans mb_pasteId language starting_text langs =
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
+display_preview :: Paste -> String -> PageM Html
+display_preview paste htm =
+ do content <- display_paste undefined Nothing (paste,htm)
+    skin the_title noHtml noHtml content
+  where
+  the_title = "Previewing " ++ show_title paste
+
 display_pastes :: UTCTime -> Paste -> [Paste] -> [(String,[Int])] -> PageM Html
 display_pastes now x xs cs =
  do new_url  <- make_url (methodURL mNew (Just (paste_id x)) Nothing)
     view_url <- make_url (methodURL mView (paste_id x))
-    content  <- mapM (display_paste now view_url) (zip (x:xs) (map fst cs))
+    content  <- mapM (display_paste now (Just view_url))
+                         (zip (x:xs) (map fst cs))
     skin the_title (other_links new_url) css (toHtml content)
   where
-  the_title   = ("Viewing " ++ show_title x)
+  the_title = "Viewing " ++ show_title x
 
   other_links new_url = anchor ! [href new_url] << "add revision"
 
@@ -145,19 +155,23 @@ display_pastes now x xs cs =
             concat ["#li-", show (paste_id p), "-", show a,
                     " { background-color: yellow; }\n"]
 
-display_paste :: UTCTime -> String -> (Paste, String) -> PageM Html
-display_paste now view_url (paste, rendered) =
+display_paste :: UTCTime -> Maybe String -> (Paste, String) -> PageM Html
+display_paste now mb_view_url (paste, rendered) =
   make_url (methodURL mNew (Just (paste_id paste)) (Just ())) >>= \ new_url ->
   make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
   return $
-      thediv ! [theclass "entrylinks"]
-      << (anchor ! [ href new_url] << "modify"
-      +++ " "
-      +++ anchor ! [href raw_url] << "download"
-      +++ " "
-      +++ anchor ! [identifier ("a" ++ show (paste_id paste)),
-                    href (view_url ++ "#a" ++ show(paste_id paste)) ] << "link"
-         )
+     (case mb_view_url of
+        Nothing -> p << "This is only a preview"
+        Just view_url ->
+          thediv ! [theclass "entrylinks"]
+          << (anchor ! [ href new_url] << "modify"
+          +++ " "
+          +++ anchor ! [href raw_url] << "download"
+          +++ " "
+          +++ anchor ! [identifier ("a" ++ show (paste_id paste)),
+                        href (view_url ++ "#a" ++ show(paste_id paste)) ]
+                        << "link"
+         ))
   +++ thediv ! [theclass "pasteheader"]
       << (h2 << paste_title paste
       +++ thediv ! [theclass "labels"]
@@ -168,14 +182,31 @@ display_paste now view_url (paste, rendered) =
       +++ thediv ! [theclass "clearer"] << noHtml
          )
   +++ thediv ! [theclass "contentbox"] << primHtml rendered
-  +++ form ! [method "POST", action "add_annot"]
-      << (hidden "id" (show (paste_id paste))
-      +++ textfield "line.0"
-      +++ submit "add" "Add highlight")
-  +++ form ! [method "POST", action "del_annot"]
-      << (hidden "id" (show (paste_id paste))
-      +++ textfield "line.0"
-      +++ submit "submit" "Remove highlight")
+  +++
+  (case mb_view_url of
+     Nothing ->
+             form ! [method "POST", action "save"]
+             << (hidden "author" (paste_author paste)
+             +++ hidden "title" (paste_title paste)
+             +++ hidden "content" (paste_content paste)
+             +++ hidden "language" (paste_language paste)
+             +++ hidden "channel" (paste_channel paste)
+             +++ (case paste_parentid paste of
+                     Nothing -> noHtml
+                     Just p -> hidden "parent" (show p))
+             +++ input ! [ thetype "submit", alt "save"
+                         , theclass "imagebutton" , name "save"
+                         , value "save" ])
+     Just  _ ->
+             form ! [method "POST", action "add_annot"]
+             << (hidden "id" (show (paste_id paste))
+             +++ textfield "line.0"
+             +++ submit "add" "Add highlight")
+         +++ form ! [method "POST", action "del_annot"]
+             << (hidden "id" (show (paste_id paste))
+             +++ textfield "line.0"
+             +++ submit "submit" "Remove highlight")
+   )
 
 skin :: String -> Html -> Html -> Html -> PageM Html
 skin title_text other_links head_html body_html =
@@ -213,7 +244,7 @@ show_title p | paste_title p == "" = "(untitled)"
 show_ago :: UTCTime -> Paste -> String
 show_ago now paste = helper (paste_timestamp paste)
   where
-  helper Nothing = "unknown"
+  helper Nothing = "new"
   helper (Just earlier) =
     let d = truncate $ diffUTCTime now earlier
     in if d == 0 then "new" else

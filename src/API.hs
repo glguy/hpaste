@@ -16,7 +16,6 @@ mSave = Method ( (Arg "title"    :: Arg Req String)
               :> (Arg "language" :: Arg Req String)
               :> (Arg "channel"  :: Arg Req String)
               :> (Arg "parent"   :: Arg Opt Int)
-              :> (Arg "save"     :: Arg Opt ())
               :> (Arg "preview"  :: Arg Opt ())
                )
         "POST" "save" "Saves the paste"

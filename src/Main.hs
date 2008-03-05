@@ -107,8 +107,8 @@ handleNew mb_pasteId edit =
 -- | Handle saving of new pastes and revisions
 --   XXX: Preview not supported yet
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
-           -> Maybe () -> Maybe () -> Action
-handleSave title author content language channel mb_parent save preview =
+           -> Maybe () -> Action
+handleSave title author content language channel mb_parent preview =
   exec_python get_languages >>= \ languages ->
   let validation_msgs = catMaybes [length_check "title" 40 title
                                   ,length_check "author" 40 author
@@ -140,9 +140,12 @@ handleSave title author content language channel mb_parent save preview =
                     , paste_timestamp = Nothing
                     , paste_expireon = Nothing
                     }
-  pasteId <- exec_db $ writePaste paste
-  unless (null channel1) $ announce pasteId
-  redirectToView pasteId mb_parent1
+  case preview of
+    Just () -> do htm <- exec_python $ highlight 0 language content
+                  outputHTML $ display_preview paste htm
+    Nothing -> do pasteId <- exec_db $ writePaste paste
+                  unless (null channel1) $ announce pasteId
+                  redirectToView pasteId mb_parent1
 
 -- | Write the id of a newly created paste to the socket to communicate to
 --   the bot
