@@ -162,14 +162,12 @@ display_paste now view_url (paste, rendered) =
   +++ thediv ! [theclass "pasteheader"]
       << (h2 << paste_title paste
       +++ thediv ! [theclass "labels"]
-          << (make_label "author" (paste_author paste)
-          +++ " "
-          +++ make_label "age" (show_ago now paste)
-          +++ " "
-          +++ make_label "language" (paste_language paste)
+          << (defList $ zip ["author","age","language"]
+                            [paste_author paste,show_ago now paste,
+                             paste_language paste]
              )
+      +++ thediv ! [theclass "clearer"] << noHtml
          )
-  +++ thediv ! [theclass "clearer"] << noHtml
   +++ thediv ! [theclass "contentbox"] << primHtml rendered
   +++ form ! [method "POST", action "add_annot"]
       << (hidden "id" (show (paste_id paste))
@@ -179,12 +177,6 @@ display_paste now view_url (paste, rendered) =
       << (hidden "id" (show (paste_id paste))
       +++ textfield "line.0"
       +++ submit "submit" "Remove highlight")
-
-  where
-  make_label k v = thespan ! [theclass "labelitem"]
-                   << (thespan ! [theclass "labelkey"] << k
-                   +++ " "
-                   +++ thespan ! [theclass "labelvalue"] << v)
 
 skin :: String -> Html -> Html -> Html -> PageM Html
 skin title_text other_links head_html body_html =

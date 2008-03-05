@@ -8,23 +8,28 @@ body { font-family: sans-serif
      ; margin: 0
      ; padding: 0
      }
-span.labelkey {
+div.labels dl {
+  display: inline;
+}
+div.labels dt {
   color: #999;
   font-style: italic;
+  display: inline;
+  padding: 2px;
+  margin: 0;
+  margin-right: 5px;
 }
-span.labelitem {
+div.labels dd {
+  margin: 0;
+  display: inline;
   white-space: nowrap;
   font-weight: normal;
   margin-right: 5px;
-  padding: 2px;
-  font-size: smaller;
-}
-span.labelvalue {
-  color: #333;
-  padding: 0 5px;
 }
 div.labels {
+  font-size: smaller;
   text-align: right;
+  padding: 2px;
 }
 
 div.footerlinks {
@@ -199,7 +204,7 @@ input.imagebutton {
  background-color: #333366;
  font-style: italic;
 }
-div.clearer { clear: both; }
+div.clearer { clear: both; width: 100%; }
 span.leftmost { float: left }
 
 td.linenos pre {
