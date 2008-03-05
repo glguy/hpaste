@@ -13,14 +13,14 @@
 module Main(main) where
 
 import API
+import Config
 import Highlight
 import Pages
+import Session
 import Storage
 import Types
-import Config
-import Utils.Misc (maybeRead)
-import Utils.URL
 import Utils.Compat()
+import Utils.URL
 
 import Codec.Binary.UTF8.String as UTF8
 import Control.Concurrent
@@ -32,7 +32,6 @@ import Network.FastCGI
 import Network
 import Prelude hiding (catch)
 import System.IO
-import System.Random
 import Text.XHtml.Strict hiding (URL)
 import MonadLib
 
@@ -278,39 +277,12 @@ member_check field_name x xs
 getDecodedInputs = map decoder `fmap` getInputs
   where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
 
-{-
-session_set :: Show a => String -> a -> CGI ()
+session_set :: Show a => String -> a -> PasteM ()
 session_set k v =
- do sid <- get_session_id
-    exec_db (store_session_var sid k v)
+ do sid <- ask_session_id
+    exec_db (storeSessionVar sid k v)
 
-session_get :: Read a => String -> CGI (Maybe a)
-session_get =
- do sid <- get_session_id
-    exec_db (load_session_var sid k)
--}
-type SessionId = Int
-session_cookie_name :: String
-session_cookie_name = "sid"
-
-get_session_id :: CGI SessionId
-get_session_id =
- do mb_sessionCookie <- getCookie session_cookie_name
-    case maybeRead =<< mb_sessionCookie of
-      Nothing -> do sid <- liftIO generate_sid
-                    setCookie (make_session_cookie sid)
-                    return sid
-      Just sid -> return sid
-
-generate_sid :: IO Int
-generate_sid = randomIO
-
-make_session_cookie :: Int -> Cookie
-make_session_cookie sid = Cookie
-  { cookieName = session_cookie_name
-  , cookieValue = show sid
-  , cookieExpires = Nothing
-  , cookieDomain = Nothing
-  , cookiePath = Nothing
-  , cookieSecure = False
-  }
+session_get :: Read a => String -> PasteM (Maybe a)
+session_get k =
+ do sid <- ask_session_id
+    exec_db (getSessionVar sid k)
