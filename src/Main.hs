@@ -75,7 +75,7 @@ main =
     conf   <- liftIO getConfig
     runFastCGIConcurrent' forkIO 10 (mainCGI pyh conf)
 
-mainCGI :: PythonHandle -> Config -> CGIT IO CGIResult
+mainCGI :: PythonHandle -> Config -> CGI CGIResult
 mainCGI pyh conf =
  do method <- requestMethod
     params <- getDecodedInputs
@@ -194,8 +194,9 @@ handleRaw pasteId =
  do res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just x  -> do setHeader "Content-type" "text/plain; charset=utf-8"
-                    output $ UTF8.encodeString $ paste_content x
+      Just x  -> with_cache (paste_timestamp x) $
+                  do setHeader "Content-type" "text/plain; charset=utf-8"
+                     output $ UTF8.encodeString $ paste_content x
 
 
 -- | Display the most recent pastes. The number of pastes to display is set
@@ -296,9 +297,8 @@ session_get k =
  do sid <- ask_session_id
     exec_db (getSessionVar sid k)
 
-outputNotModified =
- do setStatus 304 "Not Modified"
-    outputNothing
+outputNotModified :: Action
+outputNotModified = setStatus 304 "Not Modified" >> outputNothing
 
 with_cache :: Maybe UTCTime -> Action -> Action
 with_cache Nothing m = m
