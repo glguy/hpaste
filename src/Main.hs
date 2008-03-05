@@ -62,6 +62,7 @@ docs     :: [String]
   , mList --> handleList
   , mAddAnnot --> handleAddAnnot
   , mDelAnnot --> handleDelAnnot
+  , mAnnotCss --> handleAnnotCss
   ]
 
 usage :: String
@@ -70,15 +71,15 @@ usage = unlines $ intersperse "" docs
 main :: IO ()
 main =
  do pyh <- liftIO init_highlighter
-    runFastCGIConcurrent' forkIO 10 (mainCGI pyh)
+    conf   <- liftIO getConfig
+    runFastCGIConcurrent' forkIO 10 (mainCGI pyh conf)
 
-mainCGI :: PythonHandle -> CGIT IO CGIResult
-mainCGI pyh =
+mainCGI :: PythonHandle -> Config -> CGIT IO CGIResult
+mainCGI pyh conf =
  do method <- requestMethod
     params <- getDecodedInputs
     p      <- drop 1 `fmap` pathInfo
-    conf   <- liftIO getConfig
-    sid    <-  get_session_id
+    sid    <- get_session_id
     let c = Context method p params
     runPasteM sid pyh conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre << usage
@@ -172,11 +173,16 @@ handleView pasteId =
                     xs <- mapM hl (x:kids)
                     outputHTML $ display_pastes now x kids xs
   where
-  hl paste = do as <- exec_db $ getAnnotations $ paste_id paste
-                htm <- exec_python $ highlight (paste_id paste)
-                                               (paste_language paste)
-                                               (paste_content paste)
-                return (htm,as)
+  hl paste = exec_python $ highlight (paste_id paste)
+                                     (paste_language paste)
+                                     (paste_content paste)
+
+handleAnnotCss :: Int -> Action
+handleAnnotCss pasteId =
+ do as <- exec_db $ getAnnotations pasteId
+    setHeader "Content-type" "text/css; charset=utf-8"
+    let names = [ concat ["#li-", show p, "-", show q] | (p, q) <- as]
+    output $ concat (intersperse "," names) ++ "{background-color:yellow;}"
 
 -- | Display a plain-text version of the paste. This is useful for downloading
 --   the code.
@@ -185,7 +191,7 @@ handleRaw pasteId =
  do res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just x  -> do setHeader "Content-type" "text/plain"
+      Just x  -> do setHeader "Content-type" "text/plain; charset=utf-8"
                     output $ UTF8.encodeString $ paste_content x
 
 

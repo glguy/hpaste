@@ -81,9 +81,13 @@ getPaste :: Int -> StoreM (Maybe Paste)
 getPaste pasteId = run_db (onePaste (sqlbind query [bindP pasteId]))
   where query = "SELECT * FROM paste WHERE pasteid = ?"
 
-getAnnotations :: Int -> StoreM [Int]
-getAnnotations pasteId = run_db (allAnnotations (sqlbind query [bindP pasteId]))
-  where query = "SELECT line FROM annotation WHERE pasteid = ?"
+getAnnotations :: Int -> StoreM [(Int,Int)]
+getAnnotations pasteId = run_db (allAnnotations (sqlbind query bindings))
+  where
+  query = "SELECT a.pasteid, a.line FROM annotation as a "
+       ++ "INNER JOIN paste as p ON p.pasteid = a.pasteid "
+       ++ "WHERE p.pasteid = ? OR p.parentid = ?"
+  bindings = [bindP pasteId, bindP pasteId]
 
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
@@ -142,10 +146,10 @@ topmost_parent mb_parent =
   where bind m f = maybe (return Nothing) f =<< m
 
 
-allAnnotations stmt = reverse `fmap` doQuery stmt iter []
+allAnnotations stmt = doQuery stmt iter []
   where
-  iter :: Monad m => Int -> IterAct m [Int]
-  iter x acc = result' (x : acc)
+  iter :: Monad m => Int -> Int -> IterAct m [(Int,Int)]
+  iter x y acc = result' ((x,y) : acc)
 
 type PasteIter x
   = Int -> String -> String -> String -> String -> Maybe String -> String

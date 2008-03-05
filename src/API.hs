@@ -30,6 +30,9 @@ mDelAnnot = Method ( (Arg "id"    :: Arg Req Int)
                    )
         "POST" "del_annot" "Remove annotations from a paste"
 
+mAnnotCss = Method (Arg "id"    :: Arg Req Int)
+        "GET" "annot_css" "Generate CSS file for highlighted lines"
+
 mView = Method (Arg "id"      :: Arg Req Int)
         "GET" "view" "Displays a paste"
 
