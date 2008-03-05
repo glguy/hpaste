@@ -192,8 +192,7 @@ display_paste now mb_view_url (paste, rendered) =
       << (h2 << paste_title paste
       +++ thediv ! [theclass "labels"]
           << (defList $ zip ["author","age","language"]
-                            [ let a = paste_author paste
-                              in if null a then "(anonymous)" else a
+                            [ show_author paste
                             , show_ago now paste
                             , paste_language paste]
              )
