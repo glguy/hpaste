@@ -27,7 +27,7 @@ executable hpaste.fcgi
     Includes:        python-local.h
     Include-dirs:    include
     main-is:         Main.hs
-    ghc-options:     -threaded
+    ghc-options:     -threaded -W
     extensions:
                      DeriveDataTypeable,
                      EmptyDataDecls,

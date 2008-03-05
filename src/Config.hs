@@ -1,7 +1,6 @@
 module Config where
 
 import Utils.Misc
-import Network
 
 data Config = Config
   { db_path     :: FilePath
@@ -37,5 +36,5 @@ getConfig =
   do txt <- readFile "hpaste.conf"
      case maybeRead txt of
        Just conf -> return conf
-       Nothing -> return default_config
-   `catch` \_ -> return default_config
+       Nothing -> fail "Failed to parse config file!"
+     `catch` \_ -> return default_config

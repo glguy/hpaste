@@ -19,20 +19,15 @@ import Storage
 import Types
 import Config
 import Utils.URL
-import Utils.Misc(maybeRead)
 import Utils.Compat()
 
 import Codec.Binary.UTF8.String as UTF8
 import Control.Concurrent
 import Control.Exception
 import Data.List
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.Time.Clock
-import Foreign.C.String
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
-import Network.URI
 import Network
 import Prelude hiding (catch)
 import System.IO
@@ -215,12 +210,6 @@ handleDelAnnot pid ls = do mbPaste <- exec_db $ getPaste pid
                                do exec_db (delAnnotations pid (map snd ls))
                                   redirectToView pid (paste_parentid paste)
 
--- | Split a list of elements by some delimiter
-split :: Eq a => a -> [a] -> [[a]]
-split d [] = []
-split d xs = case break (==d) xs of
-               (a, []) -> [a]
-               (a, _:b) -> a : split d b
 
 -- | Lift a PageM computation into the PasteM monad. This loads values from
 --   the CGI state into the PageM environment

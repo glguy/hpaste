@@ -32,11 +32,10 @@ module Storage
 import Types
 import Utils.Misc(parse_time)
 
-import MonadLib
-import Database.Sqlite.Enumerator
-import Codec.Binary.UTF8.String as UTF8
-import Data.Maybe (listToMaybe,fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Typeable
+import Database.Sqlite.Enumerator
+import MonadLib
 
 newtype StoreM a = SM (ReaderT FilePath IO a)
   deriving (Functor,Monad)
