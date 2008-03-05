@@ -189,7 +189,7 @@ display_paste now mb_view_url (paste, rendered) =
                         << "link"
          ))
   +++ thediv ! [theclass "pasteheader"]
-      << (h2 << paste_title paste
+      << (h2 << show_title paste
       +++ thediv ! [theclass "labels"]
           << (defList $ zip ["author","age","language"]
                             [ show_author paste
