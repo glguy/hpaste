@@ -18,6 +18,7 @@ import Pages
 import Storage
 import Types
 import Config
+import Utils.Misc (maybeRead)
 import Utils.URL
 import Utils.Compat()
 
@@ -31,21 +32,26 @@ import Network.FastCGI
 import Network
 import Prelude hiding (catch)
 import System.IO
+import System.Random
 import Text.XHtml.Strict hiding (URL)
 import MonadLib
 
-type PasteM = ReaderT (PythonHandle, Config) (CGIT IO)
+type PasteM = ReaderT (SessionId, PythonHandle, Config) (CGIT IO)
 type Action = PasteM CGIResult
 
 get_conf :: PasteM Config
-get_conf = fmap snd ask
+get_conf = fmap (\(_,_,x)->x) ask
 
+exec_python :: PythonM a -> PasteM a
 exec_python m =
- do h <- fmap fst ask
+ do h <- fmap (\(_,x,_)->x) ask
     liftIO $ runPythonM h m
 
-runPasteM :: PythonHandle -> Config -> PasteM a -> CGI a
-runPasteM a b = runReaderT (a,b)
+ask_session_id :: PasteM SessionId
+ask_session_id = fmap (\(x,_,_)->x) ask
+
+runPasteM :: SessionId -> PythonHandle -> Config -> PasteM a -> CGI a
+runPasteM a b c = runReaderT (a,b,c)
 
 handlers :: [Context -> Maybe (Either String Action)]
 docs     :: [String]
@@ -73,8 +79,9 @@ mainCGI pyh =
     params <- getDecodedInputs
     p      <- drop 1 `fmap` pathInfo
     conf   <- liftIO getConfig
+    sid    <-  get_session_id
     let c = Context method p params
-    runPasteM pyh conf $ case runAPI c handlers of
+    runPasteM sid pyh conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre << usage
       Just (Left err) -> outputHTML $ return $ pre << err
       Just (Right r)  -> r
@@ -272,3 +279,40 @@ member_check field_name x xs
 -- | Decode the UTF-8 bytes from the CGI inputs
 getDecodedInputs = map decoder `fmap` getInputs
   where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
+
+{-
+session_set :: Show a => String -> a -> CGI ()
+session_set k v =
+ do sid <- get_session_id
+    exec_db (store_session_var sid k v)
+
+session_get :: Read a => String -> CGI (Maybe a)
+session_get =
+ do sid <- get_session_id
+    exec_db (load_session_var sid k)
+-}
+type SessionId = Int
+session_cookie_name :: String
+session_cookie_name = "sid"
+
+get_session_id :: CGI SessionId
+get_session_id =
+ do mb_sessionCookie <- getCookie session_cookie_name
+    case maybeRead =<< mb_sessionCookie of
+      Nothing -> do sid <- liftIO generate_sid
+                    setCookie (make_session_cookie sid)
+                    return sid
+      Just sid -> return sid
+
+generate_sid :: IO Int
+generate_sid = randomIO
+
+make_session_cookie :: Int -> Cookie
+make_session_cookie sid = Cookie
+  { cookieName = session_cookie_name
+  , cookieValue = show sid
+  , cookieExpires = Nothing
+  , cookieDomain = Nothing
+  , cookiePath = Nothing
+  , cookieSecure = False
+  }

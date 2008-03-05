@@ -2,6 +2,7 @@
 module Pages where
 
 import Text.XHtml.Strict hiding (URL)
+import Data.Maybe (isNothing)
 import Data.Time
 import MonadLib
 
@@ -133,9 +134,24 @@ edit_paste_form chans mb_pasteId language starting_text langs =
 display_preview :: Paste -> String -> PageM Html
 display_preview paste htm =
  do content <- display_paste undefined Nothing (paste,htm)
-    skin the_title noHtml noHtml content
+    skin the_title noHtml noHtml $
+     p << "This is a preview"
+     +++ content
+     +++ save_form
   where
   the_title = "Previewing " ++ show_title paste
+  save_form = form ! [method "POST", action "save"]
+              << (hidden "author" (paste_author paste)
+              +++ hidden "title" (paste_title paste)
+              +++ hidden "content" (paste_content paste)
+              +++ hidden "language" (paste_language paste)
+              +++ hidden "channel" (paste_channel paste)
+              +++ (case paste_parentid paste of
+                      Nothing -> noHtml
+                      Just p -> hidden "parent" (show p))
+              +++ input ! [ thetype "submit", alt "save"
+                          , theclass "imagebutton" , name "save"
+                          , value "save" ])
 
 display_pastes :: UTCTime -> Paste -> [Paste] -> [(String,[Int])] -> PageM Html
 display_pastes now x xs cs =
@@ -161,7 +177,7 @@ display_paste now mb_view_url (paste, rendered) =
   make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
   return $
      (case mb_view_url of
-        Nothing -> p << "This is only a preview"
+        Nothing -> noHtml
         Just view_url ->
           thediv ! [theclass "entrylinks"]
           << (anchor ! [ href new_url] << "modify"
@@ -183,30 +199,16 @@ display_paste now mb_view_url (paste, rendered) =
          )
   +++ thediv ! [theclass "contentbox"] << primHtml rendered
   +++
-  (case mb_view_url of
-     Nothing ->
-             form ! [method "POST", action "save"]
-             << (hidden "author" (paste_author paste)
-             +++ hidden "title" (paste_title paste)
-             +++ hidden "content" (paste_content paste)
-             +++ hidden "language" (paste_language paste)
-             +++ hidden "channel" (paste_channel paste)
-             +++ (case paste_parentid paste of
-                     Nothing -> noHtml
-                     Just p -> hidden "parent" (show p))
-             +++ input ! [ thetype "submit", alt "save"
-                         , theclass "imagebutton" , name "save"
-                         , value "save" ])
-     Just  _ ->
-             form ! [method "POST", action "add_annot"]
-             << (hidden "id" (show (paste_id paste))
-             +++ textfield "line.0"
-             +++ submit "add" "Add highlight")
-         +++ form ! [method "POST", action "del_annot"]
-             << (hidden "id" (show (paste_id paste))
-             +++ textfield "line.0"
-             +++ submit "submit" "Remove highlight")
-   )
+  (if isNothing mb_view_url then noHtml else
+      form ! [method "POST", action "add_annot"]
+      << (hidden "id" (show (paste_id paste))
+      +++ textfield "line.0"
+      +++ submit "add" "Add highlight")
+  +++ form ! [method "POST", action "del_annot"]
+      << (hidden "id" (show (paste_id paste))
+      +++ textfield "line.0"
+      +++ submit "submit" "Remove highlight")
+  )
 
 skin :: String -> Html -> Html -> Html -> PageM Html
 skin title_text other_links head_html body_html =
