@@ -151,12 +151,6 @@ handleSave title author content language channel mb_parent preview =
                   outputHTML $ display_preview paste htm
     Nothing -> do pasteId <- exec_db $ writePaste paste
                   unless (null channel1) $ announce pasteId
-
-                  -- most recent n pastes written to RSS.
-                  n      <- pastes_per_page `fmap` get_conf
-                  pastes <- exec_db $ getPastes pat 1 n
-                  liftIO $ outputRSS pastes
-
                   redirectToView pasteId mb_parent1
 
 -- | Write the id of a newly created paste to the socket to communicate to
@@ -175,7 +169,7 @@ handleView pasteId =
  do res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just /  -> do kids <- exec_db $ getChildren pasteId
+      Just x  -> do kids <- exec_db $ getChildren pasteId
                     let mb_last_mod = paste_timestamp (last (x:kids))
                     with_cache mb_last_mod $
                      do now <- liftIO getCurrentTime
