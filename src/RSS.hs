@@ -16,7 +16,7 @@ module RSS where
 import Types
 import API
 import Utils.URL
-import Storage
+import Utils.Misc
 
 import Text.RSS
 import Network.URI
@@ -53,9 +53,6 @@ outputRSS pastes url path = do
         ]
 
         (map (ppr time url homepage) pastes)
-
-rfc822_named_format_str :: String
-rfc822_named_format_str  = "%a, %d %b %Y %H:%M:%S %Z"
 
 ppr :: CalendarTime -> String -> URI -> Paste -> Item
 ppr time baseurl home p =

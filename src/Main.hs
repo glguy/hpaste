@@ -158,7 +158,7 @@ handleSave title author content language channel mb_parent preview =
                   Config { pastes_per_page = n
                          , base_url        = url
                          , rss_path        = path } <- get_conf
-                  pastes <- exec_db $ getPastes Nothing 1 n
+                  pastes <- exec_db $ getPastes Nothing n 0
                   liftIO $ forkIO $ outputRSS pastes url path
 
                   redirectToView pasteId mb_parent1

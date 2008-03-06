@@ -39,3 +39,6 @@ read_rfc1123 = parseTime defaultTimeLocale rfc1123_format
 
 rfc1123_format :: String
 rfc1123_format = "%a, %d %b %Y %H:%M:%S GMT"
+
+rfc822_named_format_str :: String
+rfc822_named_format_str  = "%a, %d %b %Y %H:%M:%S %Z"
