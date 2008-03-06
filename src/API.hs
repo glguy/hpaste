@@ -16,7 +16,6 @@ mSave = Method ( (Arg "title"    :: Arg Req String)
               :> (Arg "language" :: Arg Req String)
               :> (Arg "channel"  :: Arg Req String)
               :> (Arg "parent"   :: Arg Opt Int)
-              :> (Arg "save"     :: Arg Opt ())
               :> (Arg "preview"  :: Arg Opt ())
                )
         "POST" "save" "Saves the paste"
@@ -30,6 +29,9 @@ mDelAnnot = Method ( (Arg "id"    :: Arg Req Int)
                   :> (Arg "line"  :: Arg Many Int)
                    )
         "POST" "del_annot" "Remove annotations from a paste"
+
+mAnnotCss = Method (Arg "id"    :: Arg Req Int)
+        "GET" "annot_css" "Generate CSS file for highlighted lines"
 
 mView = Method (Arg "id"      :: Arg Req Int)
         "GET" "view" "Displays a paste"

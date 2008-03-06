@@ -20,8 +20,8 @@ utf8_encode :: String -> BS.ByteString
 utf8_encode = BS.pack . UTF8.encode
 
 whenJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
-whenJust Nothing _ = return ()
 whenJust (Just x) f = f x
+whenJust _ _ = return ()
 
 drop_prefix :: String -> String -> Maybe String
 drop_prefix [] xs = Just xs
@@ -31,3 +31,11 @@ drop_prefix _ _ = Nothing
 parse_time :: String -> Maybe UTCTime
 parse_time = parseTime defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q"
 
+show_rfc1123 :: UTCTime -> String
+show_rfc1123 = formatTime defaultTimeLocale rfc1123_format
+
+read_rfc1123 :: String -> Maybe UTCTime
+read_rfc1123 = parseTime defaultTimeLocale rfc1123_format
+
+rfc1123_format :: String
+rfc1123_format = "%a, %d %b %Y %H:%M:%S GMT"

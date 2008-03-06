@@ -1,5 +1,7 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
-module Highlight (PythonHandle(), PythonM(), init_highlighter, highlight, get_languages, runPythonM) where
+{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
+module Highlight
+         ( PythonHandle(), PythonM()
+         , init_highlighter, highlight, get_languages, runPythonM) where
 
 import Control.Concurrent.MVar
 import Control.Monad.Trans
@@ -61,13 +63,12 @@ runSimpleString code = withCString code pyRunSimpleString
 --
 -------------------------------------------------------------------------------
 
--- | Pointers to new references. These are reference counted.
-data PyObjectStruct1 = PyObjectStruct1
-type PyObject1 = Ptr PyObjectStruct1
-
 -- | Pointers to borrowed references. These do not need to be released.
-data PyObjectStruct = PyObjectStruct
+data PyObjectStruct
 type PyObject = Ptr PyObjectStruct
+
+data PyObjectStruct1
+type PyObject1 = Ptr PyObjectStruct1
 
 foreign import ccall "python2.5/Python.h Py_Initialize"
   pyInitialize :: IO ()
@@ -75,34 +76,6 @@ foreign import ccall "python2.5/Python.h Py_Initialize"
 foreign import ccall "python2.5/Python.h Py_Finalize"
   pyFinalize :: IO ()
 
--------------------------------------------------------------------------------
--- Global Interpreter Lock Functions
--------------------------------------------------------------------------------
-
-data PyGILStateStateStruct = PyGILStateStateStruct
-type PyGILStateState = Ptr PyGILStateStateStruct
-
-foreign import ccall "python2.5/Python.h PyEval_InitThreads"
-  pyEvalInitThreads :: IO ()
-
-foreign import ccall "python2.5/Python.h PyGILState_Ensure"
-  pyGILStateEnsure :: IO PyGILStateState
-
-foreign import ccall "python2.5/Python.h PyGILState_Release"
-  pyGILStateRelease :: PyGILStateState -> IO ()
-
-foreign import ccall "python2.5/Python.h PyEval_ReleaseLock"
-  pyEvalReleaseLock :: IO ()
-
-foreign import ccall "python2.5/Python.h PyEval_AcquireLock"
-  pyEvalAcquireLock :: IO ()
-
-withGIL :: IO a -> IO a
-withGIL m =
- do s <- pyGILStateEnsure
-    x <- m
-    pyGILStateRelease s
-    return x
 
 -------------------------------------------------------------------------------
 -- Accessing objects from namespaces
@@ -127,13 +100,6 @@ addModule module_name = withCString module_name pyImportAddModule
 objectGetAttr :: PyObject -> String -> IO PyObject1
 objectGetAttr pmod object_name = withCString object_name $ pyObjectGetAttrString pmod
 
--------------------------------------------------------------------------------
--- Constructing Python Values
--------------------------------------------------------------------------------
-
--- New Reference
-foreign import ccall "python2.5/Python.h Py_BuildValue"
-  pyBuildValue1 :: CString -> Ptr a -> IO PyObject1
 
 -------------------------------------------------------------------------------
 -- Calling Functions

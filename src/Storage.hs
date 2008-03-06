@@ -27,16 +27,20 @@ module Storage
 
   -- * User functions
   , getUserByMask
+
+  -- * Session functions
+  , storeSessionVar
+  , getSessionVar
   ) where
 
+import Session (SessionId)
 import Types
 import Utils.Misc(parse_time)
 
-import MonadLib
-import Database.Sqlite.Enumerator
-import Codec.Binary.UTF8.String as UTF8
-import Data.Maybe (listToMaybe,fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Typeable
+import Database.Sqlite.Enumerator
+import MonadLib
 
 newtype StoreM a = SM (ReaderT FilePath IO a)
   deriving (Functor,Monad)
@@ -77,9 +81,13 @@ getPaste :: Int -> StoreM (Maybe Paste)
 getPaste pasteId = run_db (onePaste (sqlbind query [bindP pasteId]))
   where query = "SELECT * FROM paste WHERE pasteid = ?"
 
-getAnnotations :: Int -> StoreM [Int]
-getAnnotations pasteId = run_db (allAnnotations (sqlbind query [bindP pasteId]))
-  where query = "SELECT line FROM annotation WHERE pasteid = ?"
+getAnnotations :: Int -> StoreM [(Int,Int)]
+getAnnotations pasteId = run_db (allAnnotations (sqlbind query bindings))
+  where
+  query = "SELECT a.pasteid, a.line FROM annotation as a "
+       ++ "INNER JOIN paste as p ON p.pasteid = a.pasteid "
+       ++ "WHERE p.pasteid = ? OR p.parentid = ?"
+  bindings = [bindP pasteId, bindP pasteId]
 
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
@@ -138,10 +146,10 @@ topmost_parent mb_parent =
   where bind m f = maybe (return Nothing) f =<< m
 
 
-allAnnotations stmt = reverse `fmap` doQuery stmt iter []
+allAnnotations stmt = doQuery stmt iter []
   where
-  iter :: Monad m => Int -> IterAct m [Int]
-  iter x acc = result' (x : acc)
+  iter :: Monad m => Int -> Int -> IterAct m [(Int,Int)]
+  iter x y acc = result' ((x,y) : acc)
 
 type PasteIter x
   = Int -> String -> String -> String -> String -> Maybe String -> String
@@ -181,3 +189,9 @@ oneUser stmt = doQuery stmt iter Nothing
 
 oneResult :: Monad m => IterAct m a
 oneResult a = return (Left a)
+
+storeSessionVar :: Show a => SessionId -> String -> a -> StoreM ()
+storeSessionVar = undefined
+
+getSessionVar :: Read a => SessionId -> String -> StoreM (Maybe a)
+getSessionVar = undefined

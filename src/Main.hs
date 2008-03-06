@@ -13,44 +13,45 @@
 module Main(main) where
 
 import API
+import Config
 import Highlight
 import Pages
+import Session
 import Storage
 import Types
-import Config
-import Utils.URL
-import Utils.Misc(maybeRead)
 import Utils.Compat()
+import Utils.Misc
+import Utils.URL
 
 import Codec.Binary.UTF8.String as UTF8
 import Control.Concurrent
 import Control.Exception
 import Data.List
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IntMap
 import Data.Time.Clock
-import Foreign.C.String
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
-import Network.URI
 import Network
 import Prelude hiding (catch)
 import System.IO
 import Text.XHtml.Strict hiding (URL)
 import MonadLib
 
-type PasteM = ReaderT (PythonHandle, Config) (CGIT IO)
+type PasteM = ReaderT (SessionId, PythonHandle, Config) (CGIT IO)
 type Action = PasteM CGIResult
 
 get_conf :: PasteM Config
-get_conf = fmap snd ask
+get_conf = fmap (\(_,_,x)->x) ask
 
+exec_python :: PythonM a -> PasteM a
 exec_python m =
- do h <- fmap fst ask
+ do h <- fmap (\(_,x,_)->x) ask
     liftIO $ runPythonM h m
 
-runPasteM :: PythonHandle -> Config -> PasteM a -> CGI a
-runPasteM a b = runReaderT (a,b)
+ask_session_id :: PasteM SessionId
+ask_session_id = fmap (\(x,_,_)->x) ask
+
+runPasteM :: SessionId -> PythonHandle -> Config -> PasteM a -> CGI a
+runPasteM a b c = runReaderT (a,b,c)
 
 handlers :: [Context -> Maybe (Either String Action)]
 docs     :: [String]
@@ -62,6 +63,7 @@ docs     :: [String]
   , mList --> handleList
   , mAddAnnot --> handleAddAnnot
   , mDelAnnot --> handleDelAnnot
+  , mAnnotCss --> handleAnnotCss
   ]
 
 usage :: String
@@ -70,16 +72,17 @@ usage = unlines $ intersperse "" docs
 main :: IO ()
 main =
  do pyh <- liftIO init_highlighter
-    runFastCGIConcurrent' forkIO 10 (mainCGI pyh)
+    conf   <- liftIO getConfig
+    runFastCGIConcurrent' forkIO 10 (mainCGI pyh conf)
 
-mainCGI :: PythonHandle -> CGIT IO CGIResult
-mainCGI pyh =
+mainCGI :: PythonHandle -> Config -> CGI CGIResult
+mainCGI pyh conf =
  do method <- requestMethod
     params <- getDecodedInputs
     p      <- drop 1 `fmap` pathInfo
-    conf   <- liftIO getConfig
+    sid    <- get_session_id
     let c = Context method p params
-    runPasteM pyh conf $ case runAPI c handlers of
+    runPasteM sid pyh conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre << usage
       Just (Left err) -> outputHTML $ return $ pre << err
       Just (Right r)  -> r
@@ -112,14 +115,12 @@ handleNew mb_pasteId edit =
 -- | Handle saving of new pastes and revisions
 --   XXX: Preview not supported yet
 handleSave :: String -> String -> String -> String -> String -> Maybe Int
-           -> Maybe () -> Maybe () -> Action
-handleSave title author content language channel mb_parent save preview =
+           -> Maybe () -> Action
+handleSave title author content language channel mb_parent preview =
   exec_python get_languages >>= \ languages ->
   let validation_msgs = catMaybes [length_check "title" 40 title
                                   ,length_check "author" 40 author
                                   ,length_check "content" 5000 content
-                                  ,blank_check "title" title
-                                  ,blank_check "author" author
                                   ,blank_check "content" content
                                   ,member_check "language" language
                                                    (map snd languages)
@@ -145,9 +146,12 @@ handleSave title author content language channel mb_parent save preview =
                     , paste_timestamp = Nothing
                     , paste_expireon = Nothing
                     }
-  pasteId <- exec_db $ writePaste paste
-  unless (null channel1) $ announce pasteId
-  redirectToView pasteId mb_parent1
+  case preview of
+    Just () -> do htm <- exec_python $ highlight 0 language content
+                  outputHTML $ display_preview paste htm
+    Nothing -> do pasteId <- exec_db $ writePaste paste
+                  unless (null channel1) $ announce pasteId
+                  redirectToView pasteId mb_parent1
 
 -- | Write the id of a newly created paste to the socket to communicate to
 --   the bot
@@ -166,15 +170,22 @@ handleView pasteId =
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> do kids <- exec_db $ getChildren pasteId
-                    now <- liftIO getCurrentTime
-                    xs <- mapM hl (x:kids)
-                    outputHTML $ display_pastes now x kids xs
+                    let mb_last_mod = paste_timestamp (last (x:kids))
+                    with_cache mb_last_mod $
+                     do now <- liftIO getCurrentTime
+                        xs <- mapM hl (x:kids)
+                        outputHTML $ display_pastes now x kids xs
   where
-  hl paste = do as <- exec_db $ getAnnotations $ paste_id paste
-                htm <- exec_python $ highlight (paste_id paste)
-                                               (paste_language paste)
-                                               (paste_content paste)
-                return (htm,as)
+  hl paste = exec_python $ highlight (paste_id paste)
+                                     (paste_language paste)
+                                     (paste_content paste)
+
+handleAnnotCss :: Int -> Action
+handleAnnotCss pasteId =
+ do as <- exec_db $ getAnnotations pasteId
+    setHeader "Content-type" "text/css; charset=utf-8"
+    let names = [ concat ["#li-", show p, "-", show q] | (p, q) <- as]
+    output $ concat (intersperse "," names) ++ "{background-color:yellow;}"
 
 -- | Display a plain-text version of the paste. This is useful for downloading
 --   the code.
@@ -183,8 +194,9 @@ handleRaw pasteId =
  do res <- exec_db $ getPaste pasteId
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
-      Just x  -> do setHeader "Content-type" "text/plain"
-                    output $ UTF8.encodeString $ paste_content x
+      Just x  -> with_cache (paste_timestamp x) $
+                  do setHeader "Content-type" "text/plain; charset=utf-8"
+                     output $ UTF8.encodeString $ paste_content x
 
 
 -- | Display the most recent pastes. The number of pastes to display is set
@@ -215,12 +227,6 @@ handleDelAnnot pid ls = do mbPaste <- exec_db $ getPaste pid
                                do exec_db (delAnnotations pid (map snd ls))
                                   redirectToView pid (paste_parentid paste)
 
--- | Split a list of elements by some delimiter
-split :: Eq a => a -> [a] -> [[a]]
-split d [] = []
-split d xs = case break (==d) xs of
-               (a, []) -> [a]
-               (a, _:b) -> a : split d b
 
 -- | Lift a PageM computation into the PasteM monad. This loads values from
 --   the CGI state into the PageM environment
@@ -280,3 +286,25 @@ member_check field_name x xs
 -- | Decode the UTF-8 bytes from the CGI inputs
 getDecodedInputs = map decoder `fmap` getInputs
   where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
+
+session_set :: Show a => String -> a -> PasteM ()
+session_set k v =
+ do sid <- ask_session_id
+    exec_db (storeSessionVar sid k v)
+
+session_get :: Read a => String -> PasteM (Maybe a)
+session_get k =
+ do sid <- ask_session_id
+    exec_db (getSessionVar sid k)
+
+outputNotModified :: Action
+outputNotModified = setStatus 304 "Not Modified" >> outputNothing
+
+with_cache :: Maybe UTCTime -> Action -> Action
+with_cache Nothing m = m
+with_cache (Just last_mod) m =
+ do last_mod_since <- requestHeader "If-Modified-Since"
+    case read_rfc1123 =<< last_mod_since of
+      Just t | t >= last_mod -> outputNotModified
+      _ -> do setHeader "Last-Modified" (show_rfc1123 last_mod)
+              m

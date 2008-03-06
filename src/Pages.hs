@@ -2,11 +2,11 @@
 module Pages where
 
 import Text.XHtml.Strict hiding (URL)
+import Data.Maybe (isNothing)
 import Data.Time
 import MonadLib
 
 import API
-import Highlight
 import Config
 import Types
 import Utils.URL
@@ -99,7 +99,9 @@ edit_paste_form chans mb_pasteId language starting_text langs =
                        ,maxlength 40])
 
       +++ input ! [ thetype "submit", alt "save" ,theclass "imagebutton"
-                  , name "submit", value "save" ]
+                  , name "save", value "save" ]
+      +++ input ! [ thetype "submit", alt "save" ,theclass "imagebutton"
+                  , name "preview", value "preview" ]
           )
   +++ thediv ! [theclass "tabsrow2"]
       << (label ! [thefor "language"]
@@ -129,47 +131,72 @@ edit_paste_form chans mb_pasteId language starting_text langs =
                    Just pasteId -> hidden "parent" (show pasteId)
                    Nothing      -> noHtml
 
-display_pastes :: UTCTime -> Paste -> [Paste] -> [(String,[Int])] -> PageM Html
+display_preview :: Paste -> String -> PageM Html
+display_preview paste htm =
+ do content <- display_paste undefined Nothing (paste,htm)
+    skin the_title noHtml noHtml $
+     p << "This is a preview"
+     +++ content
+     +++ save_form
+  where
+  the_title = "Previewing " ++ show_title paste
+  save_form = form ! [method "POST", action "save"]
+              << (hidden "author" (paste_author paste)
+              +++ hidden "title" (paste_title paste)
+              +++ hidden "content" (paste_content paste)
+              +++ hidden "language" (paste_language paste)
+              +++ hidden "channel" (paste_channel paste)
+              +++ (case paste_parentid paste of
+                      Nothing -> noHtml
+                      Just p -> hidden "parent" (show p))
+              +++ input ! [ thetype "submit", alt "save"
+                          , theclass "imagebutton" , name "save"
+                          , value "save" ])
+
+display_pastes :: UTCTime -> Paste -> [Paste] -> [String] -> PageM Html
 display_pastes now x xs cs =
  do new_url  <- make_url (methodURL mNew (Just (paste_id x)) Nothing)
     view_url <- make_url (methodURL mView (paste_id x))
-    content  <- mapM (display_paste now view_url) (zip (x:xs) (map fst cs))
-    skin the_title (other_links new_url) css (toHtml content)
+    css_url  <- make_url (methodURL mAnnotCss (paste_id x))
+    content  <- mapM (display_paste now (Just view_url))
+                         (zip (x:xs) cs)
+    skin the_title (other_links new_url) (css_link css_url) (toHtml content)
   where
-  the_title   = ("Viewing " ++ show_title x)
-
+  the_title = "Viewing " ++ show_title x
   other_links new_url = anchor ! [href new_url] << "add revision"
 
-  css  = style ! [thetype "text/css"] << primHtml css1
-  css1 = do (p, as) <- zip (x:xs) (map snd cs)
-            a <- as
-            concat ["#li-", show (paste_id p), "-", show a,
-                    " { background-color: yellow; }\n"]
 
-display_paste :: UTCTime -> String -> (Paste, String) -> PageM Html
-display_paste now view_url (paste, rendered) =
+display_paste :: UTCTime -> Maybe String -> (Paste, String) -> PageM Html
+display_paste now mb_view_url (paste, rendered) =
   make_url (methodURL mNew (Just (paste_id paste)) (Just ())) >>= \ new_url ->
   make_url (methodURL mRaw (paste_id paste)) >>= \ raw_url ->
   return $
-      thediv ! [theclass "entrylinks"]
-      << (anchor ! [ href new_url] << "modify"
-      +++ " "
-      +++ anchor ! [href raw_url] << "download"
-      +++ " "
-      +++ anchor ! [identifier ("a" ++ show (paste_id paste)),
-                    href (view_url ++ "#a" ++ show(paste_id paste)) ] << "link"
-         )
+     (case mb_view_url of
+        Nothing -> noHtml
+        Just view_url ->
+          thediv ! [theclass "entrylinks"]
+          << (anchor ! [ href new_url] << "modify"
+          +++ " "
+          +++ anchor ! [href raw_url] << "download"
+          +++ " "
+          +++ anchor ! [identifier ("a" ++ show (paste_id paste)),
+                        href (view_url ++ "#a" ++ show(paste_id paste)) ]
+                        << "link"
+         ))
   +++ thediv ! [theclass "pasteheader"]
-      << (h2 << paste_title paste
+      << (h2 << show_title paste
       +++ thediv ! [theclass "labels"]
           << (defList $ zip ["author","age","language"]
-                            [paste_author paste,show_ago now paste,
-                             paste_language paste]
+                            [ show_author paste
+                            , show_ago now paste
+                            , paste_language paste]
              )
       +++ thediv ! [theclass "clearer"] << noHtml
          )
   +++ thediv ! [theclass "contentbox"] << primHtml rendered
-  +++ form ! [method "POST", action "add_annot"]
+  +++
+  (if isNothing mb_view_url then noHtml else
+      form ! [method "POST", action "add_annot"]
       << (hidden "id" (show (paste_id paste))
       +++ textfield "line.0"
       +++ submit "add" "Add highlight")
@@ -177,6 +204,7 @@ display_paste now view_url (paste, rendered) =
       << (hidden "id" (show (paste_id paste))
       +++ textfield "line.0"
       +++ submit "submit" "Remove highlight")
+  )
 
 skin :: String -> Html -> Html -> Html -> PageM Html
 skin title_text other_links head_html body_html =
@@ -186,8 +214,7 @@ skin title_text other_links head_html body_html =
     return $
      header
      << (thetitle << (title_text ++ " - hpaste")
-     +++ [thelink ! [rel "stylesheet", thetype "text/css", href stylesheet]
-          << noHtml | stylesheet <- stylesheets]
+     +++ map css_link stylesheets
      +++ meta ! [httpequiv "Content-Type", content "text/html; charset=utf-8"]
      +++ head_html)
      +++
@@ -214,7 +241,7 @@ show_title p | paste_title p == "" = "(untitled)"
 show_ago :: UTCTime -> Paste -> String
 show_ago now paste = helper (paste_timestamp paste)
   where
-  helper Nothing = "unknown"
+  helper Nothing = "new"
   helper (Just earlier) =
     let d = truncate $ diffUTCTime now earlier
     in if d == 0 then "new" else
@@ -225,3 +252,6 @@ show_ago now paste = helper (paste_timestamp paste)
        if d < 7200 then "1 hour" else
        if d < 86400 then show (d `div` 3600) ++ " hours" else
        if d < 172800 then "1 day" else show (d `div` 86400) ++ " days"
+
+css_link url = thelink ! [rel "stylesheet", thetype "text/css", href url]
+               << noHtml

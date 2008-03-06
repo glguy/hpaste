@@ -10,6 +10,7 @@ body { font-family: sans-serif
      }
 div.labels dl {
   display: inline;
+  white-space: nowrap;
 }
 div.labels dt {
   color: #999;
@@ -64,12 +65,9 @@ table.pastelist th {
   font-size: smaller;
   background-color: #ccc;
 }
-pre.plaintext {
-  margin: 5px;
-  overflow: auto;
-}
 
-pre.sourceCode { overflow: auto; }
+td.linenos { vertical-align: top }
+td.code pre { overflow: auto; }
 
 div.contentbox {
 border: 2px solid #ccc;
