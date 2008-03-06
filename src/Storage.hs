@@ -37,6 +37,8 @@ import Session (SessionId)
 import Types
 import Utils.Misc(parse_time)
 
+import Data.Char
+import Data.List
 import Data.Maybe (fromMaybe)
 import Data.Typeable
 import Database.Sqlite.Enumerator
@@ -65,12 +67,32 @@ execMany a bs = run_db (withPreparedStatement (prepareCommand (sql a)) (\ p ->
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset = run_db (allPastes (sqlbind query bindings))
   where
-  query = "SELECT * FROM paste" ++ cond ++
-          " ORDER BY createstamp DESC LIMIT ? OFFSET ?"
+  query = "SELECT * FROM paste WHERE " ++ cond ++
+          "ORDER BY createstamp DESC LIMIT ? OFFSET ?"
   bindings = param ++ [bindP limit, bindP offset]
+
   (param,cond) = case mpat of
-                   Just pat -> ([bindP pat]," WHERE content LIKE ?")
-                   Nothing -> ([], " WHERE parentid IS NULL")
+                   Just pat -> let xs = patternToQuery pat
+                                   qs = map (const "content LIKE ? ESCAPE '\\' ") xs
+                               in (xs,concat (intersperse "AND " qs))
+                   Nothing -> ([], "parentid IS NULL")
+
+patternToQuery pat = map (\x -> bindP ("%"++ escape x ++ "%")) (my_words pat)
+  where
+  escape = concatMap escapeAux
+  escapeAux '\\' = "\\\\"
+  escapeAux '%'  = "\\%"
+  escapeAux '_'  = "\\_"
+  escapeAux x    =  [x]
+
+  my_words = my_words1 . dropWhile isSpace
+
+  my_words1 []       = []
+  my_words1 ('"':xs) = let (a,b) = break (=='"') xs
+                       in a : my_words (drop 1 b)
+
+  my_words1 xs       = let (a,b) = break isSpace xs
+                       in a : my_words b
 
 getChildren :: Int -> StoreM [Paste]
 getChildren parentid = run_db (allPastes (sqlbind query [bindP parentid]))

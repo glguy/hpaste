@@ -202,12 +202,12 @@ handleRaw pasteId =
 -- | Display the most recent pastes. The number of pastes to display is set
 --   in the configuration file.
 handleList :: Maybe String -> Maybe Int -> Action
-handleList pat offset = do
-    let offset1 = max 0 $ fromMaybe 0 offset
-    n <- pastes_per_page `fmap` get_conf
+handleList pat offset =
+ do let offset1 = max 0 $ fromMaybe 0 offset
+    n      <- pastes_per_page `fmap` get_conf
     pastes <- exec_db $ getPastes pat (n+1) (offset1 * n)
-    now <- liftIO $ getCurrentTime
-    outputHTML $ list_page now pastes offset1
+    now    <- liftIO $ getCurrentTime
+    outputHTML $ list_page now pastes pat offset1
 
 -- | Mark lines in a paste to be highlighted
 handleAddAnnot :: Int -> [(String,Int)] -> Action
