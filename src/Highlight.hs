@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls #-}
+{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls, GeneralizedNewtypeDeriving #-}
 module Highlight
          ( PythonHandle(), PythonM()
          , init_highlighter, highlight, get_languages, runPythonM) where
