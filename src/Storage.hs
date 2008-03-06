@@ -70,11 +70,12 @@ getPastes mpat limit offset = SM (allPastes (sqlbind query bindings))
           "ORDER BY createstamp DESC LIMIT ? OFFSET ?"
   bindings = param ++ [bindP limit, bindP offset]
 
-  (param,cond) = case mpat of
-                   Just pat -> let xs = patternToQuery pat
-                                   qs = map (const "content LIKE ? ESCAPE '\\' ") xs
-                               in (xs,concat (intersperse "AND " qs))
-                   Nothing -> ([], "parentid IS NULL ")
+  (param,cond) =
+    case mpat of
+      Just pat -> let xs = patternToQuery pat
+                      qs = map (const "content LIKE ? ESCAPE '\\' ") xs
+                  in (xs,concat (intersperse "AND " qs))
+      Nothing -> ([], "parentid IS NULL ")
 
 patternToQuery pat = map (\x -> bindP ("%"++ escape x ++ "%")) (my_words pat)
   where
