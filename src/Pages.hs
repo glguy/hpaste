@@ -41,7 +41,9 @@ list_page now pastes pat offset = do
   earlier_url <- make_url (methodURL mList pat (Just (offset + 1)))
   later_url   <- make_url (methodURL mList pat (Just (offset - 1)))
   skin the_title noHtml noHtml $
-      the_heading +++ html_result urls n earlier_url later_url
+      the_heading
+      +++ html_result urls n earlier_url later_url
+      +++ search_form
 
   where
   the_title = case pat of
@@ -52,6 +54,10 @@ list_page now pastes pat offset = do
                 << case pat of
                      Just query -> "Search results for " +++ emphasize << query
                      Nothing    -> noHtml
+
+  search_form = form ! [method "get"]
+                << (textfield "search"
+                +++ submit "search" "search")
 
   html_result urls n earlier_url later_url =
      table ! [theclass "pastelist"]
