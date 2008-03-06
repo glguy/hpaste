@@ -1,6 +1,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+
 module Storage
   (
   -- * The Store monad
@@ -50,11 +51,12 @@ newtype StoreM a = SM (ReaderT FilePath IO a)
 instance BaseM StoreM IO where
   inBase = SM . lift . inBase
 
-get_db :: StoreM FilePath
-get_db = SM ask
-
+-- | Run some code in StoreM monad
 runStoreM :: FilePath -> StoreM a -> IO a
 runStoreM db (SM m) = runReaderT db m
+
+get_db :: StoreM FilePath
+get_db = SM ask
 
 run_db :: Typeable a => (forall mark. DBM mark Session a) -> StoreM a
 run_db m = do db <- get_db
@@ -63,6 +65,9 @@ run_db m = do db <- get_db
 
 execMany a bs = run_db (withPreparedStatement (prepareCommand (sql a)) (\ p ->
                         forM_ bs (\ b -> withBoundStatement p b execDML)))
+
+------------------------------------------------------------------------
+-- Reading from the database
 
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
 getPastes mpat limit offset = run_db (allPastes (sqlbind query bindings))
@@ -111,6 +116,9 @@ getAnnotations pasteId = run_db (allAnnotations (sqlbind query bindings))
        ++ "WHERE p.pasteid = ? OR p.parentid = ?"
   bindings = [bindP pasteId, bindP pasteId]
 
+------------------------------------------------------------------------
+-- Deleting from the database
+
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
 delAnnotations pid [] = run_db (execDML (cmdbind query [bindP pid]) >>
@@ -122,6 +130,8 @@ delAnnotations pid ls = execMany query binds
   query = "DELETE FROM annotation WHERE pasteid = ? AND line = ?"
   binds = [ [bindP pid,bindP l] | l <- ls ]
 
+------------------------------------------------------------------------
+-- Adding annotations
 
 addAnnotations :: Int -> [Int] -> StoreM ()
 addAnnotations pid ls = execMany query binds
@@ -129,7 +139,8 @@ addAnnotations pid ls = execMany query binds
   query = "REPLACE INTO annotation (pasteid,line) VALUES (?,?)"
   binds = [ [bindP pid, bindP l] | l <- ls ]
 
-
+------------------------------------------------------------------------
+-- Writing a new paste
 
 writePaste :: Paste -> StoreM Int
 writePaste p = run_db (execDML (cmdbind query bindings) >>
@@ -143,6 +154,8 @@ writePaste p = run_db (execDML (cmdbind query bindings) >>
               , bindP (paste_channel p)  , bindP (paste_parentid p)
               , bindP (paste_ipaddress p), bindP (paste_hostname p)
               ]
+
+------------------------------------------------------------------------
 
 getChannels :: StoreM [String]
 getChannels = run_db (allChannels query)

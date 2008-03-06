@@ -11,15 +11,14 @@ import Config
 import Types
 import Utils.URL
 
-
-data PageEnv = PageEnv { page_env_conf :: Config
+data PageEnv = PageEnv { page_env_conf    :: Config
                        , page_env_baseurl :: String }
 
 newtype PageM a = PageM (ReaderT PageEnv Id a)
  deriving (Monad, Functor)
 
-
 runPageM conf baseurl (PageM m) = runId $ runReaderT (PageEnv conf baseurl) m
+
 asks f = f `fmap` PageM ask
 
 make_url :: URL -> PageM String
@@ -36,12 +35,13 @@ error_page errors =
   p << "Please use your back button to correct your paste."
 
 list_page :: UTCTime -> [Paste] -> Maybe String -> Int -> PageM Html
-list_page now pastes pat offset =
-  mapM (make_url . methodURL mView . paste_id) pastes >>= \ urls ->
-  asks (pastes_per_page . page_env_conf) >>= \ n ->
-  make_url (methodURL mList pat (Just (offset + 1))) >>= \ earlier_url ->
-  make_url (methodURL mList pat (Just (offset - 1))) >>= \ later_url ->
-  skin the_title noHtml noHtml $ the_heading +++ html_result urls n earlier_url later_url
+list_page now pastes pat offset = do
+  urls        <- mapM (make_url . methodURL mView . paste_id) pastes
+  n           <- asks (pastes_per_page . page_env_conf)
+  earlier_url <- make_url (methodURL mList pat (Just (offset + 1)))
+  later_url   <- make_url (methodURL mList pat (Just (offset - 1)))
+  skin the_title noHtml noHtml $
+      the_heading +++ html_result urls n earlier_url later_url
 
   where
   the_title = case pat of
