@@ -135,18 +135,18 @@ handleSave title author content language channel mb_parent preview =
   let channel1 = if channel `elem` chans then channel else ""
   ip <- remoteAddr
   hostname <- remoteHost
-  let paste = Paste { paste_id = 0
-                    , paste_title = title
-                    , paste_author = author
-                    , paste_content = content
-                    , paste_language = language
-                    , paste_channel = channel1
-                    , paste_parentid = mb_parent1
-                    , paste_hostname = hostname
-                    , paste_ipaddress = ip
+  let paste = Paste { paste_id          = 0
+                    , paste_title       = title
+                    , paste_author      = author
+                    , paste_content     = content
+                    , paste_language    = language
+                    , paste_channel     = channel1
+                    , paste_parentid    = mb_parent1
+                    , paste_hostname    = hostname
+                    , paste_ipaddress   = ip
                     -- overwritten:
-                    , paste_timestamp = Nothing
-                    , paste_expireon = Nothing
+                    , paste_timestamp   = Nothing
+                    , paste_expireon    = Nothing
                     }
   case preview of
     Just () -> do htm <- exec_python $ highlight 0 language content

@@ -10,6 +10,7 @@ data Paste = Paste
       , paste_content   :: String
       , paste_title     :: String
       , paste_author    :: String
+      -- ..md5 sum of email address..
       , paste_hostname  :: Maybe String
       , paste_ipaddress :: String
       , paste_expireon  :: Maybe Int
