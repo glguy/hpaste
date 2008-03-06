@@ -34,16 +34,31 @@ error_page errors =
   +++
   p << "Please use your back button to correct your paste."
 
-list_page :: UTCTime -> [Paste] -> Int -> PageM Html
-list_page now pastes offset = do
+list_page :: UTCTime -> [Paste] -> Maybe String -> Int -> PageM Html
+list_page now pastes pat offset = do
   urls        <- mapM (make_url . methodURL mView . paste_id) pastes
   n           <- asks (pastes_per_page . page_env_conf)
-  earlier_url <- make_url (methodURL mList Nothing (Just (offset + 1)))
-  later_url   <- make_url (methodURL mList Nothing (Just (offset - 1)))
-  skin "Recent Pastes" noHtml noHtml $
-      html_result urls n earlier_url later_url
+  earlier_url <- make_url (methodURL mList pat (Just (offset + 1)))
+  later_url   <- make_url (methodURL mList pat (Just (offset - 1)))
+  skin the_title noHtml noHtml $
+      the_heading
+      +++ html_result urls n earlier_url later_url
+      +++ search_form
 
   where
+  the_title = case pat of
+                Just query -> "Search results for " ++ query
+                Nothing    -> "Recent Pastes"
+
+  the_heading = h2
+                << case pat of
+                     Just query -> "Search results for " +++ emphasize << query
+                     Nothing    -> noHtml
+
+  search_form = form ! [method "get"]
+                << (textfield "search"
+                +++ submit "search" "search")
+
   html_result urls n earlier_url later_url =
      table ! [theclass "pastelist"]
      << (table_header
