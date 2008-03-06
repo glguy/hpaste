@@ -5,7 +5,7 @@
 module Storage
   (
   -- * The Store monad
-    StoreM
+    StoreM()
   , runStoreM
 
   -- * Paste manipulation
@@ -38,39 +38,33 @@ import Session (SessionId)
 import Types
 import Utils.Misc(parse_time)
 
+import Control.Monad (forM_)
 import Data.Char
 import Data.List
 import Data.Maybe (fromMaybe)
 import Data.Typeable
 import Database.Sqlite.Enumerator
-import MonadLib
 
-newtype StoreM a = SM (ReaderT FilePath IO a)
-  deriving (Functor,Monad)
+newtype StoreM a = SM { unSM :: forall mark . DBM mark Session a }
 
-instance BaseM StoreM IO where
-  inBase = SM . lift . inBase
+instance Monad StoreM where
+  SM m >>= f   = SM (m >>= unSM . f)
+  SM m >> SM n = SM (m >> n)
+  return x     = SM (return x)
+  fail x       = SM (fail x)
 
--- | Run some code in StoreM monad
-runStoreM :: FilePath -> StoreM a -> IO a
-runStoreM db (SM m) = runReaderT db m
+runStoreM :: Typeable a => FilePath -> StoreM a -> IO a
+runStoreM db (SM m) = withSession (connect db) m
+                      `catchDB` \ e -> fail (formatDBException e)
 
-get_db :: StoreM FilePath
-get_db = SM ask
-
-run_db :: Typeable a => (forall mark. DBM mark Session a) -> StoreM a
-run_db m = do db <- get_db
-              inBase $ withSession (connect db) m
-                       `catchDB` \ e -> fail (formatDBException e)
-
-execMany a bs = run_db (withPreparedStatement (prepareCommand (sql a)) (\ p ->
+execMany a bs = SM (withPreparedStatement (prepareCommand (sql a)) (\ p ->
                         forM_ bs (\ b -> withBoundStatement p b execDML)))
 
 ------------------------------------------------------------------------
 -- Reading from the database
 
 getPastes :: Maybe String -> Int -> Int -> StoreM [Paste]
-getPastes mpat limit offset = run_db (allPastes (sqlbind query bindings))
+getPastes mpat limit offset = SM (allPastes (sqlbind query bindings))
   where
   query = "SELECT * FROM paste WHERE " ++ cond ++
           "ORDER BY createstamp DESC LIMIT ? OFFSET ?"
@@ -100,16 +94,16 @@ patternToQuery pat = map (\x -> bindP ("%"++ escape x ++ "%")) (my_words pat)
                        in a : my_words b
 
 getChildren :: Int -> StoreM [Paste]
-getChildren parentid = run_db (allPastes (sqlbind query [bindP parentid]))
+getChildren parentid = SM (allPastes (sqlbind query [bindP parentid]))
   where
   query = "SELECT * from paste WHERE parentid = ? ORDER BY createstamp ASC"
 
 getPaste :: Int -> StoreM (Maybe Paste)
-getPaste pasteId = run_db (onePaste (sqlbind query [bindP pasteId]))
+getPaste pasteId = SM (onePaste (sqlbind query [bindP pasteId]))
   where query = "SELECT * FROM paste WHERE pasteid = ?"
 
 getAnnotations :: Int -> StoreM [(Int,Int)]
-getAnnotations pasteId = run_db (allAnnotations (sqlbind query bindings))
+getAnnotations pasteId = SM (allAnnotations (sqlbind query bindings))
   where
   query = "SELECT a.pasteid, a.line FROM annotation as a "
        ++ "INNER JOIN paste as p ON p.pasteid = a.pasteid "
@@ -121,7 +115,7 @@ getAnnotations pasteId = run_db (allAnnotations (sqlbind query bindings))
 
 -- | The empt ylist of lines means "remove all annotations"!
 delAnnotations :: Int -> [Int] -> StoreM ()
-delAnnotations pid [] = run_db (execDML (cmdbind query [bindP pid]) >>
+delAnnotations pid [] = SM (execDML (cmdbind query [bindP pid]) >>
                                 return ())
   where query = "DELETE FROM annotation WHERE pasteid = ?"
 
@@ -143,7 +137,7 @@ addAnnotations pid ls = execMany query binds
 -- Writing a new paste
 
 writePaste :: Paste -> StoreM Int
-writePaste p = run_db (execDML (cmdbind query bindings) >>
+writePaste p = SM (execDML (cmdbind query bindings) >>
                        fromIntegral `fmap` inquire LastInsertRowid)
   where
   query = "INSERT INTO paste (title, author, content, language, " ++
@@ -158,20 +152,20 @@ writePaste p = run_db (execDML (cmdbind query bindings) >>
 ------------------------------------------------------------------------
 
 getChannels :: StoreM [String]
-getChannels = run_db (allChannels query)
+getChannels = SM (allChannels query)
   where query = "SELECT channelname from channel ORDER BY channelname"
 
 
 addChannel :: String -> StoreM Int
-addChannel chan = run_db (execDML (cmdbind query [bindP chan]))
+addChannel chan = SM (execDML (cmdbind query [bindP chan]))
   where query = "INSERT INTO channel (channelname) VALUES (?)"
 
 delChannel :: String -> StoreM Int
-delChannel chan = run_db (execDML (cmdbind query [bindP chan]))
+delChannel chan = SM (execDML (cmdbind query [bindP chan]))
   where query = "DELETE FROM channel WHERE channelname = ?"
 
 clearChannels :: StoreM Int
-clearChannels = run_db (execDML "DELETE FROM channel")
+clearChannels = SM (execDML "DELETE FROM channel")
 
 topmost_parent :: Maybe Int -> StoreM (Maybe Int)
 topmost_parent mb_parent =
@@ -211,7 +205,7 @@ allChannels stmt = reverse `fmap` doQuery stmt iter []
   iter a acc = result' (a : acc)
 
 getUserByMask :: String -> StoreM (Maybe User)
-getUserByMask mask = run_db (oneUser (sqlbind query [bindP mask]))
+getUserByMask mask = SM (oneUser (sqlbind query [bindP mask]))
   where query = "SELECT userid,username,userpassword,ircmask,admin FROM user "
              ++ "WHERE ircmask = ?"
 
