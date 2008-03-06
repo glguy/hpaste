@@ -4,12 +4,12 @@ import Utils.Misc
 
 -- | The configuration type for hpaste.
 data Config = Config
-  { db_path             :: FilePath
+  { db_path             :: FilePath -- ^ path to database
   , style_path          :: [String]
   , pastes_per_page     :: !Int
   , default_language    :: String
-  , base_url            :: String
-  , rss_path            :: FilePath
+  , base_url            :: String   -- ^ base url of service
+  , rss_path            :: FilePath -- ^ rss file to generate to
   , irc_host            :: String
   , irc_nick            :: String
   , irc_username        :: String
