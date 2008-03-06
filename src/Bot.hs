@@ -4,6 +4,7 @@ import Control.Concurrent
 import Control.Exception
 import Control.Monad
 import Data.List
+import Data.Typeable
 import Data.Maybe
 import Network
 import Network.IRC
@@ -115,6 +116,6 @@ paste_to_announce baseurl paste topmost_id =
   ++ paste_title paste ++ "\" at "
   ++ baseurl ++ exportURL (methodURL mView topmost_id)
 
-exec_db :: StoreM a -> M a
+exec_db :: Typeable a => StoreM a -> M a
 exec_db m = do conf <- current_config
                io $ runStoreM (db_path conf) m

@@ -94,7 +94,8 @@ list_page now pastes pat offset = do
                +++ th << "Language"
                +++ th << "Channel"
 
-edit_paste_form :: [String] -> Maybe Int -> String -> String -> [(String,String)] -> PageM Html
+edit_paste_form :: [String] -> Maybe Int -> String -> String
+                -> [(String,String)] -> PageM Html
 edit_paste_form chans mb_pasteId language starting_text langs =
   skin page_title noHtml noHtml $
   h2 ! [theclass "newheader"] << page_title

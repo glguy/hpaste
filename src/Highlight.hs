@@ -1,4 +1,6 @@
-{-# LANGUAGE ForeignFunctionInterface, EmptyDataDecls, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ForeignFunctionInterface,
+             EmptyDataDecls,
+             GeneralizedNewtypeDeriving #-}
 module Highlight
          ( PythonHandle(), PythonM()
          , init_highlighter, highlight, get_languages, runPythonM) where
@@ -98,7 +100,8 @@ addModule :: String -> IO PyObject
 addModule module_name = withCString module_name pyImportAddModule
 
 objectGetAttr :: PyObject -> String -> IO PyObject1
-objectGetAttr pmod object_name = withCString object_name $ pyObjectGetAttrString pmod
+objectGetAttr pmod object_name =
+  withCString object_name $ pyObjectGetAttrString pmod
 
 
 -------------------------------------------------------------------------------

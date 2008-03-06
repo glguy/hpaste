@@ -28,6 +28,7 @@ import Codec.Binary.UTF8.String as UTF8
 import Control.Concurrent
 import Control.Exception
 import Data.List
+import Data.Typeable
 import Data.Time.Clock
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
@@ -244,7 +245,7 @@ buildHTML m      = do sn <- scriptName
                       return $ runPageM conf sn m
 
 -- | Lift a StoreM computation into the PasteM monad.
-exec_db :: StoreM a -> PasteM a
+exec_db :: Typeable a => StoreM a -> PasteM a
 exec_db m = do path <- db_path `fmap` get_conf
                liftIO (runStoreM path m)
 
@@ -300,7 +301,7 @@ session_set k v =
  do sid <- ask_session_id
     exec_db (storeSessionVar sid k v)
 
-session_get :: Read a => String -> PasteM (Maybe a)
+session_get :: (Typeable a, Read a) => String -> PasteM (Maybe a)
 session_get k =
  do sid <- ask_session_id
     exec_db (getSessionVar sid k)
