@@ -29,11 +29,11 @@ import System.IO
 -- sure
 Just logo     = parseURI "http://upload.wikimedia.org/wikipedia/commons/thumb/4/43/Feed-icon.svg/48px-Feed-icon.svg.png"
 
-outputRSS :: [Paste] -> String -> IO ()
-outputRSS pastes url = do
+outputRSS :: [Paste] -> String -> FilePath -> IO ()
+outputRSS pastes url path = do
    let Just homepage = parseURI url
    time <- getClockTime >>= toCalendarTime
-   writeFile "recent.rss" . showXML . rssToXML $
+   writeFile path . showXML . rssToXML $
     RSS "hpaste"
         homepage
         "hpaste: recent pastes"

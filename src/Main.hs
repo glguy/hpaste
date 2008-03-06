@@ -155,10 +155,11 @@ handleSave title author content language channel mb_parent preview =
                   unless (null channel1) $ announce pasteId
 
                   -- now generate RSS
-                  n      <- pastes_per_page `fmap` get_conf
-                  url    <- base_url `fmap` get_conf
+                  Config { pastes_per_page = n
+                         , base_url        = url
+                         , rss_path        = path } <- get_conf
                   pastes <- exec_db $ getPastes Nothing 1 n
-                  liftIO $ forkIO $ outputRSS pastes url
+                  liftIO $ forkIO $ outputRSS pastes url path
 
                   redirectToView pasteId mb_parent1
 
