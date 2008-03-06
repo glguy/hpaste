@@ -30,11 +30,10 @@ module Storage
   , getUserByMask
 
   -- * Session functions
-  , storeSessionVar
-  , getSessionVar
+  , storeSessionData
+  , retrieveSessionData
   ) where
 
-import Session (SessionId)
 import Types
 import Utils.Misc(parse_time)
 
@@ -220,8 +219,6 @@ oneUser stmt = doQuery stmt iter Nothing
 oneResult :: Monad m => IterAct m a
 oneResult a = return (Left a)
 
-storeSessionVar :: Show a => SessionId -> String -> a -> StoreM ()
-storeSessionVar = undefined
+storeSessionData = undefined
 
-getSessionVar :: Read a => SessionId -> String -> StoreM (Maybe a)
-getSessionVar = undefined
+retrieveSessionData = undefined
