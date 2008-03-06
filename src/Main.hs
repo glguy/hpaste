@@ -19,6 +19,7 @@ import Pages
 import Session
 import Storage
 import Types
+import RSS
 import Utils.Compat()
 import Utils.Misc
 import Utils.URL
@@ -151,6 +152,13 @@ handleSave title author content language channel mb_parent preview =
                   outputHTML $ display_preview paste htm
     Nothing -> do pasteId <- exec_db $ writePaste paste
                   unless (null channel1) $ announce pasteId
+
+                  -- now generate RSS
+                  n      <- pastes_per_page `fmap` get_conf
+                  url    <- base_url `fmap` get_conf
+                  pastes <- exec_db $ getPastes Nothing 1 n
+                  liftIO $ forkIO $ outputRSS pastes url
+
                   redirectToView pasteId mb_parent1
 
 -- | Write the id of a newly created paste to the socket to communicate to
