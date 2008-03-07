@@ -149,7 +149,7 @@ edit_paste_form chans mb_pasteId language starting_text langs =
 
 display_preview :: Paste -> String -> PageM Html
 display_preview paste htm =
- do content <- display_paste undefined Nothing (paste,htm)
+ do content <- display_paste (error "whoops") Nothing (paste,htm)
     skin the_title noHtml noHtml $
      p << "This is a preview"
      +++ content

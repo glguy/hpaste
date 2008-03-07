@@ -16,44 +16,25 @@ import API
 import Config
 import Highlight
 import Pages
-import Session
+import PasteM
 import Storage
 import Types
---import RSS
 import Utils.Compat()
 import Utils.Misc
 import Utils.URL
 
 import qualified Codec.Binary.UTF8.Generic as UTF8
 import Control.Concurrent
+import Control.Monad (unless)
 import Control.Exception
 import Data.List
-import Data.Typeable
 import Data.Time.Clock
 import Data.Maybe (catMaybes, fromMaybe, isNothing)
 import Network.FastCGI
 import Network
 import Prelude hiding (catch)
 import System.IO
-import Text.XHtml.Strict hiding (URL)
-import MonadLib
-
-type PasteM = ReaderT (SessionId, PythonHandle, Config) (CGIT IO)
-type Action = PasteM CGIResult
-
-get_conf :: PasteM Config
-get_conf = fmap (\(_,_,x)->x) ask
-
-exec_python :: PythonM a -> PasteM a
-exec_python m =
- do h <- fmap (\(_,x,_)->x) ask
-    liftIO $ runPythonM h m
-
-ask_session_id :: PasteM SessionId
-ask_session_id = fmap (\(x,_,_)->x) ask
-
-runPasteM :: SessionId -> PythonHandle -> Config -> PasteM a -> CGI a
-runPasteM a b c = runReaderT (a,b,c)
+import Text.XHtml.Strict
 
 handlers :: [Context -> Maybe (Either String Action)]
 docs     :: [String]
@@ -73,21 +54,23 @@ usage = unlines $ intersperse "" docs
 
 main :: IO ()
 main =
- do pyh <- liftIO init_highlighter
-    conf   <- liftIO getConfig
+ do pyh  <- init_highlighter
+    conf <- getConfig
     runFastCGIConcurrent' forkIO 10 (mainCGI pyh conf)
 
 mainCGI :: PythonHandle -> Config -> CGI CGIResult
 mainCGI pyh conf =
- do method <- requestMethod
-    params <- getDecodedInputs
-    p      <- drop 1 `fmap` pathInfo
-    sid    <- get_session_id
+ do method     <- requestMethod
+    params     <- getDecodedInputs
+    p          <- drop 1 `fmap` pathInfo
+    sid        <- get_session_id
     let c = Context method p params
     runPasteM sid pyh conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre << usage
       Just (Left err) -> outputHTML $ return $ pre << err
-      Just (Right r)  -> r
+      Just (Right r)  -> do x <- r
+                            save_session_data
+                            return x
   `catchCGI` outputException
 
 
@@ -241,25 +224,6 @@ handleDelAnnot pid ls = do mbPaste <- exec_db $ getPaste pid
                                do exec_db (delAnnotations pid (map snd ls))
                                   redirectToView pid (paste_parentid paste)
 
-
--- | Lift a PageM computation into the PasteM monad. This loads values from
---   the CGI state into the PageM environment
-buildHTML :: PageM a -> PasteM a
-buildHTML m      = do sn <- scriptName
-                      conf <- get_conf
-                      return $ runPageM conf sn m
-
--- | Lift a StoreM computation into the PasteM monad.
-exec_db :: Typeable a => StoreM a -> PasteM a
-exec_db m = do path <- db_path `fmap` get_conf
-               liftIO (runStoreM path m)
-
--- | Lift a PageM computation into the PasteM monad and output the result.
-outputHTML :: HTML a => PageM a -> PasteM CGIResult
-outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
-                  xs <- buildHTML s
-                  output $ UTF8.fromString $ showHtml xs
-
 -- | Redirect the user to view another paste using 303 See Other
 redirectToView :: MonadCGI m => Int -> Maybe Int -> m CGIResult
 redirectToView pid mbPpid =
@@ -301,16 +265,6 @@ member_check field_name x xs
 getDecodedInputs = map decoder `fmap` getInputsFPS
   where decoder (x,y) = (UTF8.toString x, UTF8.toString y)
 
-session_set :: Show a => String -> a -> PasteM ()
-session_set k v =
- do sid <- ask_session_id
-    exec_db (storeSessionVar sid k v)
-
-session_get :: (Typeable a, Read a) => String -> PasteM (Maybe a)
-session_get k =
- do sid <- ask_session_id
-    exec_db (getSessionVar sid k)
-
 outputNotModified :: Action
 outputNotModified = setStatus 304 "Not Modified" >> outputNothing
 
@@ -322,3 +276,4 @@ with_cache (Just last_mod) m =
       Just t | t >= last_mod -> outputNotModified
       _ -> do setHeader "Last-Modified" (show_rfc1123 last_mod)
               m
+
