@@ -55,7 +55,7 @@ usage = unlines $ intersperse "" docs
 main :: IO ()
 main =
  do pyh  <- init_highlighter
-    conf <- getConfig
+    conf <- loadConfig
     runFastCGIConcurrent' forkIO 10 (mainCGI pyh conf)
 
 mainCGI :: PythonHandle -> Config -> CGI CGIResult
@@ -63,14 +63,11 @@ mainCGI pyh conf =
  do method     <- requestMethod
     params     <- getDecodedInputs
     p          <- drop 1 `fmap` pathInfo
-    sid        <- get_session_id
     let c = Context method p params
-    runPasteM sid pyh conf $ case runAPI c handlers of
+    runPasteM pyh conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre << usage
       Just (Left err) -> outputHTML $ return $ pre << err
-      Just (Right r)  -> do x <- r
-                            save_session_data
-                            return x
+      Just (Right r)  -> r
   `catchCGI` outputException
 
 

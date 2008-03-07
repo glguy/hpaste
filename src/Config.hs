@@ -34,8 +34,8 @@ default_config = Config
   , announce_socket     = "announce"
   }
 
-getConfig :: IO Config
-getConfig =
+loadConfig :: IO Config
+loadConfig =
   do txt <- readFile "hpaste.conf"
      case maybeRead txt of
        Just conf -> return conf

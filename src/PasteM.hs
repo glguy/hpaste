@@ -42,12 +42,15 @@ exec_python m =
 ask_session_id :: PasteM SessionId
 ask_session_id = fmap env_session_id (PasteM ask)
 
-runPasteM :: SessionId -> PythonHandle -> Config
-          -> PasteM a -> CGI a
-runPasteM a c d =
-  runReaderT (PasteEnv a c d) . evalStateT emptyState . unPasteM
-
-evalStateT s m = fmap fst $ runStateT s m
+runPasteM :: PythonHandle -> Config -> PasteM a -> CGI a
+runPasteM c d m =
+ do sid <- get_session_id
+    dat <- exec_db (retrieveSessionData sid)
+    (r,dat') <- runReaderT (PasteEnv sid c d) 
+              $ runStateT (PasteState dat) 
+	      $ unPasteM m
+    storeSessionData sid dat'
+    return r
 
 session_cookie_name :: String
 session_cookie_name = "sid"
@@ -57,12 +60,6 @@ get_session_data = PasteM (state_session_data `fmap` get)
 modify_session_data f =
   do st <- PasteM get
      PasteM $ set $ st { state_session_data = f (state_session_data st) }
-
-load_session_data :: PasteM ()
-load_session_data =
- do sid <- ask_session_id
-    dat <- exec_db (retrieveSessionData sid)
-    modify_session_data (const dat)
 
 save_session_data :: PasteM ()
 save_session_data =
@@ -88,7 +85,7 @@ make_session_cookie sid = Cookie
   , cookieValue = show sid
   , cookieExpires = Nothing
   , cookieDomain = Nothing
-  , cookiePath = Nothing
+  , cookiePath = Just "/"
   , cookieSecure = False
   }
 
