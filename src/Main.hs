@@ -19,12 +19,12 @@ import Pages
 import Session
 import Storage
 import Types
-import RSS
+--import RSS
 import Utils.Compat()
 import Utils.Misc
 import Utils.URL
 
-import Codec.Binary.UTF8.String as UTF8
+import qualified Codec.Binary.UTF8.Generic as UTF8
 import Control.Concurrent
 import Control.Exception
 import Data.List
@@ -155,11 +155,15 @@ handleSave title author content language channel mb_parent preview =
                   unless (null channel1) $ announce pasteId
 
                   -- now generate RSS
+                  {-
                   Config { pastes_per_page = n
                          , base_url        = url
                          , rss_path        = path } <- get_conf
+                  n      <- pastes_per_page `fmap` get_conf
+                  url    <- base_url `fmap` get_conf
                   pastes <- exec_db $ getPastes Nothing n 0
                   liftIO $ forkIO $ outputRSS pastes url path
+                  -}
 
                   redirectToView pasteId mb_parent1
 
@@ -206,7 +210,7 @@ handleRaw pasteId =
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> with_cache (paste_timestamp x) $
                   do setHeader "Content-type" "text/plain; charset=utf-8"
-                     output $ UTF8.encodeString $ paste_content x
+                     output $ UTF8.fromString $ paste_content x
 
 
 -- | Display the most recent pastes. The number of pastes to display is set
@@ -254,7 +258,7 @@ exec_db m = do path <- db_path `fmap` get_conf
 outputHTML :: HTML a => PageM a -> PasteM CGIResult
 outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
                   xs <- buildHTML s
-                  output $ UTF8.encodeString $ showHtml xs
+                  output $ UTF8.fromString $ showHtml xs
 
 -- | Redirect the user to view another paste using 303 See Other
 redirectToView :: MonadCGI m => Int -> Maybe Int -> m CGIResult
@@ -294,8 +298,8 @@ member_check field_name x xs
   | otherwise   = Just $ emphasize << field_name +++ " is not valid."
 
 -- | Decode the UTF-8 bytes from the CGI inputs
-getDecodedInputs = map decoder `fmap` getInputs
-  where decoder (x,y) = (UTF8.decodeString x, UTF8.decodeString y)
+getDecodedInputs = map decoder `fmap` getInputsFPS
+  where decoder (x,y) = (UTF8.toString x, UTF8.toString y)
 
 session_set :: Show a => String -> a -> PasteM ()
 session_set k v =
