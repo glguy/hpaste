@@ -13,7 +13,7 @@ module Utils.RequestDispatch
          , (-->), runAPI, methodURL, methodURLBase) where
 
 import MonadLib
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.UTF8 as UTF8
 import Data.Maybe(mapMaybe)
 
 import Utils.URL
@@ -66,7 +66,7 @@ data Context = Context
 
 makeDispatcher :: Handler t f c => Method t -> f -> Context -> Maybe (Error c)
 makeDispatcher m handler p = do
-  guard $ cPath p == mName m && cMethod p == mHTTPMethod m
+  guard $ cPath p == ('/':mName m) && cMethod p == mHTTPMethod m
   return $ apply (cParams p) (mArguments m) handler
 
 methodURLBase :: Method args -> URL
@@ -201,9 +201,9 @@ instance IsArg String where
   show_arg    = showString
   show_type _ = "String"
 
-instance IsArg BS.ByteString where
-  read_arg    = return . utf8_encode
-  show_arg    = showString . utf8_decode
+instance IsArg UTF8.ByteString where
+  read_arg    = return . UTF8.fromString
+  show_arg    = showString . UTF8.toString
   show_type _ = "String"
 
 instance IsArg () where

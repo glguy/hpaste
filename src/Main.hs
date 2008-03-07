@@ -23,15 +23,16 @@ import Utils.Compat()
 import Utils.Misc
 import Utils.URL
 
-import qualified Codec.Binary.UTF8.Generic as UTF8
+import qualified Codec.Binary.UTF8.String as UTF8
+import qualified Data.ByteString.Lazy.UTF8 as LazyUTF8
 import Control.Concurrent
-import Control.Monad (unless)
 import Control.Exception
+import Control.Monad (unless,liftM3)
 import Data.List
+import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Data.Time.Clock
-import Data.Maybe (catMaybes, fromMaybe, isNothing)
-import Network.FastCGI
 import Network
+import Network.FastCGI
 import Prelude hiding (catch)
 import System.IO
 import Text.XHtml.Strict
@@ -60,10 +61,7 @@ main =
 
 mainCGI :: PythonHandle -> Config -> CGI CGIResult
 mainCGI pyh conf =
- do method     <- requestMethod
-    params     <- getDecodedInputs
-    p          <- drop 1 `fmap` pathInfo
-    let c = Context method p params
+ do c <- liftM3 Context requestMethod pathInfo getDecodedInputs
     runPasteM pyh conf $ case runAPI c handlers of
       Nothing         -> outputHTML $ return $ pre << usage
       Just (Left err) -> outputHTML $ return $ pre << err
@@ -76,23 +74,11 @@ mainCGI pyh conf =
 --   and revisions of existing ones.
 handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
- do chans <- exec_db getChannels
-    mb_text <- get_previous
-    langs <- exec_python get_languages
+ do chans   <- exec_db getChannels
+    mb_text <- get_previous_content mb_pasteId (isJust edit)
+    langs   <- exec_python get_languages
     log_on_error mb_text $ \ (text, language) ->
       outputHTML $ edit_paste_form chans mb_pasteId language text langs
-  where
-  get_previous =
-    case mb_pasteId of
-      Nothing -> do lang <- default_language `fmap` get_conf
-                    return $ Right ("",lang)
-      Just x ->
-        do res <- exec_db $ getPaste x
-           return $
-             case res of
-               Nothing -> Left "no such paste"
-               Just r | isNothing edit -> Right ("", paste_language r)
-                      | otherwise -> Right $ (paste_content r,paste_language r)
 
 -- | Handle saving of new pastes and revisions
 --   XXX: Preview not supported yet
@@ -110,12 +96,12 @@ handleSave title author content language channel mb_parent preview =
   in if not (null validation_msgs)
         then outputHTML $ error_page validation_msgs
         else do
+  ip         <- remoteAddr
+  hostname   <- remoteHost
   mb_parent1 <- exec_db $ topmost_parent mb_parent
-  chans <- exec_db getChannels
+  chans      <- exec_db getChannels
   let channel1 = if channel `elem` chans then channel else ""
-  ip <- remoteAddr
-  hostname <- remoteHost
-  let paste = Paste { paste_id          = 0
+      paste = Paste { paste_id          = 0
                     , paste_title       = title
                     , paste_author      = author
                     , paste_content     = content
@@ -136,26 +122,14 @@ handleSave title author content language channel mb_parent preview =
 
                   -- now generate RSS
                   {-
-                  Config { pastes_per_page = n
-                         , base_url        = url
-                         , rss_path        = path } <- get_conf
-                  n      <- pastes_per_page `fmap` get_conf
-                  url    <- base_url `fmap` get_conf
+                  path   <- withConf rss_path
+                  n      <- withConf pastes_per_page
+                  url    <- withConf base_url
                   pastes <- exec_db $ getPastes Nothing n 0
                   liftIO $ forkIO $ outputRSS pastes url path
                   -}
 
                   redirectToView pasteId mb_parent1
-
--- | Write the id of a newly created paste to the socket to communicate to
---   the bot
-announce :: Int -> PasteM ()
-announce pasteId =
- do sockname <- announce_socket `fmap` get_conf
-    liftIO $ (bracket (connectTo "" $ UnixSocket sockname)
-                       hClose $ \ h ->
-                 hPutStrLn h $ show pasteId
-                 ) `catch` \ _ -> return ()
 
 -- | Handle the viewing of existing pastes.
 handleView :: Int -> Action
@@ -177,9 +151,9 @@ handleView pasteId =
 handleAnnotCss :: Int -> Action
 handleAnnotCss pasteId =
  do as <- exec_db $ getAnnotations pasteId
-    setHeader "Content-type" "text/css; charset=utf-8"
+    setContentType css_content_type
     let names = [ concat ["#li-", show p, "-", show q] | (p, q) <- as]
-    output $ concat (intersperse "," names) ++ "{background-color:yellow;}"
+    output $ intercalate "," names ++ "{background-color:yellow;}"
 
 -- | Display a plain-text version of the paste. This is useful for downloading
 --   the code.
@@ -189,8 +163,8 @@ handleRaw pasteId =
     case res of
       Nothing -> outputNotFound $ "paste #" ++ show pasteId
       Just x  -> with_cache (paste_timestamp x) $
-                  do setHeader "Content-type" "text/plain; charset=utf-8"
-                     output $ UTF8.fromString $ paste_content x
+                  do setContentType plain_content_type
+                     output $ UTF8.encodeString $ paste_content x
 
 
 -- | Display the most recent pastes. The number of pastes to display is set
@@ -198,28 +172,28 @@ handleRaw pasteId =
 handleList :: Maybe String -> Maybe Int -> Action
 handleList pat offset =
  do let offset1 = max 0 $ fromMaybe 0 offset
-    n      <- pastes_per_page `fmap` get_conf
+    n      <- withConf pastes_per_page
     pastes <- exec_db $ getPastes pat (n+1) (offset1 * n)
     now    <- liftIO $ getCurrentTime
     outputHTML $ list_page now pastes pat offset1
 
 -- | Mark lines in a paste to be highlighted
 handleAddAnnot :: Int -> [(String,Int)] -> Action
-handleAddAnnot pid ls = do mbPaste <- exec_db $ getPaste pid
-                           case mbPaste of
-                             Nothing -> outputNotFound $ "no paste " ++ show pid
-                             Just paste ->
-                               do exec_db (addAnnotations pid (map snd ls))
-                                  redirectToView pid (paste_parentid paste)
+handleAddAnnot pid ls =
+ do mbPaste <- exec_db $ getPaste pid
+    case mbPaste of
+      Nothing    -> outputNotFound $ "no paste " ++ show pid
+      Just paste -> do exec_db (addAnnotations pid (map snd ls))
+                       redirectToView pid (paste_parentid paste)
 
 -- | Unmark lines in a paste to be highlighted
 handleDelAnnot :: Int -> [(String,Int)] -> Action
-handleDelAnnot pid ls = do mbPaste <- exec_db $ getPaste pid
-                           case mbPaste of
-                             Nothing -> outputNotFound $ "no paste " ++ show pid
-                             Just paste ->
-                               do exec_db (delAnnotations pid (map snd ls))
-                                  redirectToView pid (paste_parentid paste)
+handleDelAnnot pid ls =
+ do mbPaste <- exec_db $ getPaste pid
+    case mbPaste of
+      Nothing -> outputNotFound $ "no paste " ++ show pid
+      Just paste -> do exec_db (delAnnotations pid (map snd ls))
+                       redirectToView pid (paste_parentid paste)
 
 -- | Redirect the user to view another paste using 303 See Other
 redirectToView :: MonadCGI m => Int -> Maybe Int -> m CGIResult
@@ -259,18 +233,38 @@ member_check field_name x xs
   | otherwise   = Just $ emphasize << field_name +++ " is not valid."
 
 -- | Decode the UTF-8 bytes from the CGI inputs
+getDecodedInputs :: CGI [(String,String)]
 getDecodedInputs = map decoder `fmap` getInputsFPS
-  where decoder (x,y) = (UTF8.toString x, UTF8.toString y)
+  where decoder (x,y) = (UTF8.decodeString x, LazyUTF8.toString y)
 
 outputNotModified :: Action
 outputNotModified = setStatus 304 "Not Modified" >> outputNothing
 
 with_cache :: Maybe UTCTime -> Action -> Action
-with_cache Nothing m = m
+with_cache Nothing         m = m
 with_cache (Just last_mod) m =
  do last_mod_since <- requestHeader "If-Modified-Since"
     case read_rfc1123 =<< last_mod_since of
       Just t | t >= last_mod -> outputNotModified
-      _ -> do setHeader "Last-Modified" (show_rfc1123 last_mod)
-              m
+      _ -> setHeader "Last-Modified" (show_rfc1123 last_mod) >> m
 
+get_previous_content :: Maybe Int -> Bool
+                     -> PasteM (Either String (String,String))
+get_previous_content Nothing _ =
+ do lang <- withConf default_language
+    return $ Right ("",lang)
+get_previous_content (Just x) edit =
+ do res <- exec_db $ getPaste x
+    return $ case res of
+               Nothing            -> Left "no such paste"
+               Just r | edit      -> Right $ (paste_content r,paste_language r)
+                      | otherwise -> Right ("", paste_language r)
+
+-- | Write the id of a newly created paste to the socket to communicate to
+--   the bot
+announce :: Int -> PasteM ()
+announce pasteId =
+ do sockname <- withConf announce_socket
+    liftIO $ (bracket (connectTo "" $ UnixSocket sockname) hClose $ \ h ->
+                hPutStrLn h $ show pasteId
+             ) `catch` \ _ -> return ()

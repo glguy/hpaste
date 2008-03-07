@@ -31,8 +31,11 @@ data PasteState = PasteState
 
 emptyState = PasteState emptySessionData
 
-get_conf :: PasteM Config
-get_conf = fmap env_config (PasteM ask)
+withConf :: (Config -> a) -> PasteM a
+withConf f = fmap f getConf
+
+getConf :: PasteM Config
+getConf = fmap env_config (PasteM ask)
 
 exec_python :: PythonM a -> PasteM a
 exec_python m =
@@ -43,12 +46,12 @@ ask_session_id :: PasteM SessionId
 ask_session_id = fmap env_session_id (PasteM ask)
 
 runPasteM :: PythonHandle -> Config -> PasteM a -> CGI a
-runPasteM c d m =
+runPasteM h c m =
  do sid <- get_session_id
-    dat <- exec_db (retrieveSessionData sid)
-    (r,dat') <- runReaderT (PasteEnv sid c d) 
-              $ runStateT (PasteState dat) 
-	      $ unPasteM m
+    dat <- liftIO $ runStoreM (db_path c) $ retrieveSessionData sid
+    (r,dat') <- runReaderT (PasteEnv sid h c)
+              $ runStateT (PasteState dat)
+              $ unPasteM m
     storeSessionData sid dat'
     return r
 
@@ -96,17 +99,24 @@ make_session_cookie sid = Cookie
 
 -- | Lift a StoreM computation into the PasteM monad.
 exec_db :: Typeable a => StoreM a -> PasteM a
-exec_db m = do path <- db_path `fmap` get_conf
+exec_db m = do path <- withConf db_path
                liftIO (runStoreM path m)
 
 -- | Lift a PageM computation into the PasteM monad and output the result.
 outputHTML :: HTML a => PageM a -> PasteM CGIResult
-outputHTML s = do setHeader "Content-type" "text/html; charset=utf-8"
-                  xs <- buildHTML s
-                  output $ UTF8.encodeString $ showHtml xs
+outputHTML s = do setContentType html_content_type
+                  output . UTF8.encodeString . showHtml =<< buildHTML s
   where
   buildHTML :: PageM a -> PasteM a
-  buildHTML m      = do sn <- scriptName
-                        conf <- get_conf
-                        return $ runPageM conf sn m
+  buildHTML m = do c <- getConf
+                   sn <- scriptName
+                   return $ runPageM c sn m
 
+setContentType = setHeader "Content-type" . showContentType
+css_content_type =
+  ContentType { ctType = "text", ctSubtype = "css" , ctParameters = utf8_ct }
+html_content_type =
+  ContentType { ctType = "text", ctSubtype = "html" , ctParameters = utf8_ct }
+plain_content_type =
+  ContentType { ctType = "text", ctSubtype = "plain" , ctParameters = utf8_ct }
+utf8_ct = [("charset","utf-8")]
