@@ -21,7 +21,7 @@ import API
 
 main :: IO ()
 main = do
- conf <- getConfig
+ conf <- loadConfig
  bracket (connect (irc_host conf) (irc_port conf)) hClose $ \ handle -> do
     done <- newEmptyMVar
     out_chan <- newChan
