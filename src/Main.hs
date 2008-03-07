@@ -19,7 +19,6 @@ import Pages
 import PasteM
 import Storage
 import Types
-import RSS
 import Utils.Compat()
 import Utils.Misc
 import Utils.URL
@@ -139,11 +138,13 @@ handleSave title author content language channel mb_parent preview =
                   unless (null channel1) $ announce pasteId
 
                   -- now generate RSS
+                  {-
                   Config { pastes_per_page = n
                          , base_url        = url
                          , rss_path        = path } <- get_conf
                   pastes <- exec_db $ getPastes Nothing n 0
                   liftIO $ forkIO $ outputRSS pastes url path
+                  -}
 
                   redirectToView pasteId mb_parent1
 

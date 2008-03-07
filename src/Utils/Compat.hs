@@ -3,7 +3,6 @@
 module Utils.Compat where
 
 import MonadLib
-import Network.CGI
 import Network.CGI.Monad
 import qualified Control.Monad.Trans as MTL
 

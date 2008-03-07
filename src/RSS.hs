@@ -20,8 +20,6 @@ import Utils.Misc
 
 import Text.RSS
 import Network.URI
-import System.Time
-import System.Time.Parse
 import System.Locale
 import Data.Time
 import System.IO

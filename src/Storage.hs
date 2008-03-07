@@ -219,6 +219,6 @@ oneUser stmt = doQuery stmt iter Nothing
 oneResult :: Monad m => IterAct m a
 oneResult a = return (Left a)
 
-storeSessionData = undefined
+storeSessionData sid dat = return ()
 
-retrieveSessionData = undefined
+retrieveSessionData sid = return (SessionData Nothing)
