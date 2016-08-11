@@ -26,15 +26,11 @@ import Utils.URL
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Data.ByteString.Lazy.UTF8 as LazyUTF8
 import Control.Concurrent
-import Control.Exception
-import Control.Monad (unless,liftM3)
+import Control.Monad (liftM3)
 import Data.List
 import Data.Maybe (catMaybes, fromMaybe, isJust)
 import Data.Time.Clock
-import Network
 import Network.FastCGI
-import Prelude hiding (catch)
-import System.IO
 import Text.XHtml.Strict
 
 handlers :: [Context -> Maybe (Either String Action)]
@@ -74,21 +70,21 @@ mainCGI pyh conf =
 --   and revisions of existing ones.
 handleNew :: Maybe Int -> Maybe () -> Action
 handleNew mb_pasteId edit =
- do chans   <- exec_db getChannels
-    mb_text <- get_previous_content mb_pasteId (isJust edit)
+ do mb_text <- get_previous_content mb_pasteId (isJust edit)
     langs   <- exec_python get_languages
     log_on_error mb_text $ \ (text, language) ->
-      outputHTML $ edit_paste_form chans mb_pasteId language text langs
+      outputHTML $ edit_paste_form mb_pasteId language text langs
 
 -- | Handle saving of new pastes and revisions
 --   XXX: Preview not supported yet
-handleSave :: String -> String -> String -> String -> String -> Maybe Int
+handleSave :: String -> String -> String -> String -> Maybe Int
            -> Maybe () -> Action
-handleSave title author content language channel mb_parent preview =
+handleSave title author content language mb_parent preview =
+  withConf max_paste_length >>= \ maxLength ->
   exec_python get_languages >>= \ languages ->
   let validation_msgs = catMaybes [length_check "title" 40 title
                                   ,length_check "author" 40 author
-                                  ,length_check "content" 5000 content
+                                  ,length_check "content" maxLength content
                                   ,blank_check "content" content
                                   ,member_check "language" language
                                                    (map snd languages)
@@ -99,14 +95,12 @@ handleSave title author content language channel mb_parent preview =
   ip         <- remoteAddr
   hostname   <- remoteHost
   mb_parent1 <- exec_db $ topmost_parent mb_parent
-  chans      <- exec_db getChannels
-  let channel1 = if channel `elem` chans then channel else ""
-      paste = Paste { paste_id          = 0
+  let paste = Paste { paste_id          = 0
                     , paste_title       = title
                     , paste_author      = author
                     , paste_content     = content
                     , paste_language    = language
-                    , paste_channel     = channel1
+                    , paste_channel     = ""
                     , paste_parentid    = mb_parent1
                     , paste_hostname    = hostname
                     , paste_ipaddress   = ip
@@ -118,7 +112,6 @@ handleSave title author content language channel mb_parent preview =
     Just () -> do htm <- exec_python $ highlight 0 language content
                   outputHTML $ display_preview paste htm
     Nothing -> do pasteId <- exec_db $ writePaste paste
-                  unless (null channel1) $ announce pasteId
 
                   -- now generate RSS
                   {-
@@ -259,12 +252,3 @@ get_previous_content (Just x) edit =
                Nothing            -> Left "no such paste"
                Just r | edit      -> Right $ (paste_content r,paste_language r)
                       | otherwise -> Right ("", paste_language r)
-
--- | Write the id of a newly created paste to the socket to communicate to
---   the bot
-announce :: Int -> PasteM ()
-announce pasteId =
- do sockname <- withConf announce_socket
-    liftIO $ (bracket (connectTo "" $ UnixSocket sockname) hClose $ \ h ->
-                hPutStrLn h $ show pasteId
-             ) `catch` \ _ -> return ()

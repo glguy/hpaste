@@ -1,5 +1,7 @@
+{-# Language ScopedTypeVariables #-}
 module Config where
 
+import Control.Exception
 import Utils.Misc
 
 -- | The configuration type for hpaste.
@@ -10,12 +12,8 @@ data Config = Config
   , default_language    :: String
   , base_url            :: String   -- ^ base url of service
   , rss_path            :: FilePath -- ^ rss file to generate to
-  , irc_host            :: String
-  , irc_nick            :: String
-  , irc_username        :: String
-  , irc_realname        :: String
-  , irc_port            :: !Int
   , announce_socket     :: String
+  , max_paste_length    :: !Int
   } deriving (Read,Show)
 
 default_config :: Config
@@ -26,12 +24,8 @@ default_config = Config
   , default_language    = "Haskell"
   , base_url            = "http://localhost/cgi-bin/hpaste.fcgi/"
   , rss_path            = "recent.rss"
-  , irc_host            = "irc.freenode.org"
-  , irc_nick            = "hpaste__"
-  , irc_username        = "hpaste"
-  , irc_realname        = "announcer"
-  , irc_port            = 6666
   , announce_socket     = "announce"
+  , max_paste_length    = 50000
   }
 
 loadConfig :: IO Config
@@ -40,5 +34,4 @@ loadConfig =
      case maybeRead txt of
        Just conf -> return conf
        Nothing  -> fail "Failed to parse config file!"
-     `catch` \_ -> return default_config
-
+     `catch` \(_::IOError) -> return default_config

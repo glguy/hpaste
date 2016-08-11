@@ -1,5 +1,3 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
-{-# OPTIONS_GHC -fallow-undecidable-instances #-}
 module Utils.Compat where
 
 import MonadLib

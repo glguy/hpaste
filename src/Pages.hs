@@ -15,14 +15,14 @@ data PageEnv = PageEnv { page_env_conf    :: Config
                        , page_env_baseurl :: String }
 
 newtype PageM a = PageM (ReaderT PageEnv Id a)
- deriving (Monad, Functor)
+ deriving (Monad, Applicative, Functor)
 
 runPageM conf baseurl (PageM m) = runId $ runReaderT (PageEnv conf baseurl) m
 
-asks f = f `fmap` PageM ask
+pages f = PageM (asks f)
 
 make_url :: URL -> PageM String
-make_url url = do b <- asks page_env_baseurl
+make_url url = do b <- pages page_env_baseurl
                   return $ b ++ exportURL url
 
 error_page :: [Html] -> PageM Html
@@ -37,7 +37,7 @@ error_page errors =
 list_page :: UTCTime -> [Paste] -> Maybe String -> Int -> PageM Html
 list_page now pastes pat offset = do
   urls        <- mapM (make_url . methodURL mView . paste_id) pastes
-  n           <- asks (pastes_per_page . page_env_conf)
+  n           <- pages (pastes_per_page . page_env_conf)
   earlier_url <- make_url (methodURL mList pat (Just (offset + 1)))
   later_url   <- make_url (methodURL mList pat (Just (offset - 1)))
   skin the_title noHtml noHtml $
@@ -94,9 +94,9 @@ list_page now pastes pat offset = do
                +++ th << "Language"
                +++ th << "Channel"
 
-edit_paste_form :: [String] -> Maybe Int -> String -> String
+edit_paste_form :: Maybe Int -> String -> String
                 -> [(String,String)] -> PageM Html
-edit_paste_form chans mb_pasteId language starting_text langs =
+edit_paste_form mb_pasteId language starting_text langs =
   skin page_title noHtml noHtml $
   h2 ! [theclass "newheader"] << page_title
  +++
@@ -140,7 +140,6 @@ edit_paste_form chans mb_pasteId language starting_text langs =
 
   channel_drop_down = select ! [name "channel", identifier "channel"]
                       << (option << emphasize << "none"
-                      +++ map (option <<) chans
                          )
 
   parent_field = case mb_pasteId of
@@ -224,7 +223,7 @@ display_paste now mb_view_url (paste, rendered) =
 
 skin :: String -> Html -> Html -> Html -> PageM Html
 skin title_text other_links head_html body_html =
- do stylesheets <- asks (style_path . page_env_conf)
+ do stylesheets <- pages (style_path . page_env_conf)
     list_url    <- make_url (methodURL mList Nothing Nothing)
     new_url     <- make_url (methodURL mNew Nothing Nothing)
     return $

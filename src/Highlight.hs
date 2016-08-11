@@ -1,5 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface,
              EmptyDataDecls,
+             CApiFFI,
              GeneralizedNewtypeDeriving #-}
 module Highlight
          ( PythonHandle(), PythonM()
@@ -10,14 +11,13 @@ import Control.Monad.Trans
 import Data.List (sortBy)
 import Foreign
 import Foreign.C
-import Foreign.C.String
 
 import Data.ByteString (packCStringLen, useAsCString)
 import Data.ByteString.UTF8 as UTF8
 
 newtype PythonHandle = PythonHandle (MVar ())
 newtype PythonM a = PythonM (IO a)
-  deriving (Monad,Functor)
+  deriving (Monad,Applicative,Functor)
 
 runPythonM (PythonHandle qsem) (PythonM m) =
  do liftIO $ takeMVar qsem
@@ -56,7 +56,7 @@ runPythonFile name = runSimpleString =<< readFile name
 -- Very high level Python interface
 -------------------------------------------------------------------------------
 
-foreign import ccall "python2.5/Python.h PyRun_SimpleString"
+foreign import ccall "python2.6/Python.h PyRun_SimpleString"
   pyRunSimpleString :: CString -> IO ()
 
 runSimpleString code = withCString code pyRunSimpleString
@@ -72,23 +72,19 @@ type PyObject = Ptr PyObjectStruct
 data PyObjectStruct1
 type PyObject1 = Ptr PyObjectStruct1
 
-foreign import ccall "python2.5/Python.h Py_Initialize"
+foreign import ccall "python2.6/Python.h Py_Initialize"
   pyInitialize :: IO ()
-
-foreign import ccall "python2.5/Python.h Py_Finalize"
-  pyFinalize :: IO ()
-
 
 -------------------------------------------------------------------------------
 -- Accessing objects from namespaces
 -------------------------------------------------------------------------------
 
 -- Borrowed Reference
-foreign import ccall "python2.5/Python.h PyImport_AddModule"
+foreign import ccall "python2.6/Python.h PyImport_AddModule"
   pyImportAddModule :: CString -> IO PyObject
 
 -- New Reference
-foreign import ccall "python2.5/Python.h PyObject_GetAttrString"
+foreign import ccall "python2.6/Python.h PyObject_GetAttrString"
   pyObjectGetAttrString :: PyObject -> CString -> IO PyObject1
 
 fromImport :: String -> String -> IO PyObject1
@@ -109,11 +105,11 @@ objectGetAttr pmod object_name =
 -------------------------------------------------------------------------------
 
 -- New Reference
-foreign import ccall "python2.5/Python.h PyObject_CallFunction"
+foreign import ccall "python2.6/Python.h PyObject_CallFunction"
   pyCallFunction0 :: PyObject -> CString -> IO PyObject1
 
 -- New Reference
-foreign import ccall "python2.5/Python.h PyObject_CallFunction"
+foreign import ccall "python2.6/Python.h PyObject_CallFunction"
   pyCallFunction3 :: PyObject -> CString -> CString -> CString -> CInt
                   -> IO PyObject1
 
@@ -132,7 +128,7 @@ call3 f a b c =
 -- Reference counting functions
 -------------------------------------------------------------------------------
 
-foreign import ccall "python-local.h py_decref"
+foreign import capi "python2.6/Python.h Py_DECREF"
   pyDecRef :: PyObject1 -> IO ()
 
 withObj' :: IO PyObject1 -> (PyObject -> IO a) -> IO a
@@ -148,7 +144,7 @@ withObj obj1 f = do x <- f (castPtr obj1) -- only place the pointer is casted!
 -- String Extraction
 -------------------------------------------------------------------------------
 
-foreign import ccall "python2.5/Python.h PyString_AsStringAndSize"
+foreign import ccall "python2.6/Python.h PyString_AsStringAndSize"
   pyStringAsStringAndSize :: PyObject -> Ptr CString -> Ptr CInt -> IO CInt
 
 getString :: PyObject -> IO String
@@ -165,7 +161,7 @@ getString obj =
 -------------------------------------------------------------------------------
 
 -- New Reference
-foreign import ccall "python2.5/Python.h PyIter_Next"
+foreign import ccall "python2.6/Python.h PyIter_Next"
   pyIterNext :: PyObject -> IO PyObject1
 
 forEach :: PyObject -> (PyObject -> IO a) -> IO [a]
@@ -182,7 +178,7 @@ forEach obj f =
 -------------------------------------------------------------------------------
 
 -- Borrowed Reference
-foreign import ccall "python2.5/Python.h PyTuple_GetItem"
+foreign import ccall "python2.6/Python.h PyTuple_GetItem"
   pyTupleGetItem :: PyObject -> CInt -> IO PyObject
 
 tupleGetItem :: PyObject -> Int -> IO PyObject

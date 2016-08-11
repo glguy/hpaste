@@ -1,8 +1,6 @@
 module Utils.Misc where
 
 import Data.Time
-import Data.Time.Format
-import System.Locale
 import Data.Char (isSpace)
 
 maybeRead :: Read a => String -> Maybe a
@@ -20,13 +18,13 @@ drop_prefix (x:xs) (y:ys) | x == y      = drop_prefix xs ys
 drop_prefix _      _                    = Nothing
 
 parse_time :: String -> Maybe UTCTime
-parse_time = parseTime defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q"
+parse_time = parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q"
 
 show_rfc1123 :: UTCTime -> String
 show_rfc1123 = formatTime defaultTimeLocale rfc1123_format
 
 read_rfc1123 :: String -> Maybe UTCTime
-read_rfc1123 = parseTime defaultTimeLocale rfc1123_format
+read_rfc1123 = parseTimeM True defaultTimeLocale rfc1123_format
 
 rfc1123_format :: String
 rfc1123_format = "%a, %d %b %Y %H:%M:%S GMT"

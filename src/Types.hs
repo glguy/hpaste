@@ -30,10 +30,3 @@ data User = User
   deriving (Typeable, Show)
 
 type SessionId = Int
-
-data SessionData = SessionData
-       { session_user :: Maybe String }
- deriving (Typeable, Show)
-
-emptySessionData = SessionData Nothing
-
